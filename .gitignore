@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+data/*.xls
+data/*.xlsx
+data/*.csv
+data/*.zip
+.pytest_cache/
+*.egg-info/

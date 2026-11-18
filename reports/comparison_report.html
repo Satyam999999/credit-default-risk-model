@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 12mm 14mm 12mm 14mm; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 9.5pt; line-height: 1.35; color: #222; margin: 0; padding: 0;
+  }
+  h1 { font-size: 15pt; margin: 0 0 8px 0; color: #111; }
+  h2 { font-size: 11pt; margin: 10px 0 4px 0; color: #1a365d; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; }
+  p { margin: 4px 0 6px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 8px 0; font-size: 8.5pt; }
+  th, td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; }
+  th { background-color: #f1f5f9; font-weight: 600; }
+  ul { margin: 4px 0 6px 0; padding-left: 18px; }
+  li { margin-bottom: 2px; }
+  img { max-width: 80%; max-height: 155px; display: block; margin: 4px auto; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+<h1>Credit-default risk: comparison of scoring models</h1>
+<h2>Summary</h2>
+<p>We compared the existing scorecard-style model (logistic regression) with 3 machine-learning alternatives on 29,965 credit-card customers, predicting who will miss next month's payment. On the assumed cost of mistakes, the lowest-cost model was <strong>XGBoost</strong>.</p>
+<h2>What the baseline does</h2>
+<p>Logistic regression gives each customer a score by adding up weighted signals (recent late payments, share of bills paid, credit use, limit, age). Each weight can be read and audited, which is why scorecards are standard in lending. It can only add effects up; it cannot capture interactions such as 'late payments matter more for customers who also use most of their limit' unless someone builds them in by hand.</p>
+<h2>How the models compare</h2>
+<p>Numbers are the average over 5 cross-validation folds with a 95% interval across folds (indicative; folds share data, so true uncertainty is somewhat larger). Higher is better except cost.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>ROC-AUC</th>
+<th>PR-AUC</th>
+<th>Recall</th>
+<th>Precision</th>
+<th>Cost per customer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logistic regression (baseline)</td>
+<td>0.767 (0.751 to 0.784)</td>
+<td>0.522 (0.505 to 0.539)</td>
+<td>0.744 (0.712 to 0.776)</td>
+<td>0.369 (0.348 to 0.391)</td>
+<td>0.565 (0.539 to 0.591)</td>
+</tr>
+<tr>
+<td>Random forest</td>
+<td>0.786 (0.774 to 0.798)</td>
+<td>0.561 (0.546 to 0.576)</td>
+<td>0.747 (0.703 to 0.791)</td>
+<td>0.383 (0.345 to 0.421)</td>
+<td>0.550 (0.532 to 0.568)</td>
+</tr>
+<tr>
+<td>XGBoost</td>
+<td>0.788 (0.776 to 0.799)</td>
+<td>0.565 (0.548 to 0.581)</td>
+<td>0.765 (0.733 to 0.796)</td>
+<td>0.373 (0.349 to 0.397)</td>
+<td>0.547 (0.526 to 0.568)</td>
+</tr>
+<tr>
+<td>LightGBM</td>
+<td>0.788 (0.776 to 0.799)</td>
+<td>0.566 (0.548 to 0.584)</td>
+<td>0.764 (0.733 to 0.796)</td>
+<td>0.373 (0.338 to 0.408)</td>
+<td>0.548 (0.523 to 0.573)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Improvement over the baseline</strong> (same folds, difference with 95% interval; an interval that excludes 0 is a consistent difference):</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Δ ROC-AUC</th>
+<th>Δ PR-AUC</th>
+<th>Δ Recall</th>
+<th>Δ Cost per customer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Random forest</td>
+<td>0.0192 (0.0140 to 0.0244)</td>
+<td>0.0393 (0.0267 to 0.0520)</td>
+<td>0.0027 (-0.0528 to 0.0582)</td>
+<td>-0.0152 (-0.0242 to -0.0061)</td>
+</tr>
+<tr>
+<td>XGBoost</td>
+<td>0.0205 (0.0148 to 0.0262)</td>
+<td>0.0428 (0.0303 to 0.0553)</td>
+<td>0.0207 (-0.0396 to 0.0810)</td>
+<td>-0.0184 (-0.0287 to -0.0081)</td>
+</tr>
+<tr>
+<td>LightGBM</td>
+<td>0.0206 (0.0153 to 0.0260)</td>
+<td>0.0442 (0.0324 to 0.0560)</td>
+<td>0.0201 (-0.0259 to 0.0660)</td>
+<td>-0.0168 (-0.0281 to -0.0056)</td>
+</tr>
+</tbody>
+</table>
+<div class="page-break"></div><h2>Where we draw the line</h2>
+<p>A model outputs a probability; we need a cut-off above which a customer is flagged. <strong>Assumption (not measured from data): a missed default costs 5 times as much as a false alarm</strong> (cost 5 vs 1). The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off and the 'cost per customer' column change; the ranking of models is the more robust finding.</p>
+<p><img alt="Gain and lift" src="file:///Users/satyamghosh/Downloads/credit-default-risk/results/figures/gain_lift.png" /></p>
+<h2>What drives risk</h2>
+<ul>
+<li><strong>repayment status last month (delay in months)</strong>: higher values raise risk.</li>
+<li><strong>number of the last 3 months with a payment delay</strong>: higher values raise risk.</li>
+<li><strong>number of the last 6 months with a payment delay</strong>: higher values raise risk.</li>
+<li><strong>worst payment delay (months) in the last 6 months</strong>: higher values raise risk.</li>
+<li><strong>bill amount, month 1 (1 = most recent)</strong>: higher values lower risk.</li>
+</ul>
+<p>Sense check: recent late payments are among the top three drivers, as expected.</p>
+<h2>Recommendation</h2>
+<p>Adopt <strong>XGBoost</strong> (at least as a challenger run beside the scorecard): its cost is consistently lower than the baseline across folds. Keep the baseline as the audit reference.</p>
+<h2>Limitations</h2>
+<ul>
+<li>One dataset from one bank in one country (Taiwan, 2005); results may not transfer.</li>
+<li>Random cross-validation, <strong>no time-based validation</strong>: we have not tested performance on later periods or under economic change.</li>
+<li><strong>No fairness or regulatory analysis.</strong> Sex, age and marital status are in the data; using them may be restricted in real lending.</li>
+<li>The cost ratio is an assumption; real costs vary by exposure and recovery.</li>
+<li>'Days past due' is approximated by the dataset's repayment-status codes (months of delay).</li>
+</ul>
+</body>
+</html>

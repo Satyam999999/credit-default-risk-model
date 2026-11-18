@@ -1,0 +1,16 @@
+[project]
+name = "creditrisk"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Credit-default risk modelling on the UCI Default of Credit Card Clients dataset"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
