@@ -2,7 +2,7 @@
 
 ## Summary
 
-We compared two scorecard baselines (linear logistic regression and binned scorecard) with machine-learning alternatives (Random Forest, XGBoost, LightGBM) on 29,965 credit-card customers, predicting next-month default. On the assumed cost of mistakes (cost of false alarm = 1, cost of missed default = 5), cost differences between the machine-learning challengers and the binned scorecard (lr_binned) are **not detectable** (all 95% intervals include zero). Gradient-boosted challengers maintain a small but consistent ranking advantage (+0.010 ROC-AUC, +0.018 PR-AUC).
+We compared two scorecard baselines (linear logistic regression and binned scorecard) with machine-learning alternatives (Random Forest, XGBoost, LightGBM) on 29,965 credit-card customers, predicting next-month default. On the assumed cost of mistakes (cost of false alarm = 1, cost of missed default = 5), cost differences between the machine-learning challengers and the binned scorecard (lr_binned) are **not detectable at the assumed 5:1 ratio** (all 95% intervals include zero). Gradient-boosted challengers maintain a small but consistent ranking advantage (+0.010 ROC-AUC, +0.018 PR-AUC).
 
 ## What the baselines do
 
@@ -51,6 +51,9 @@ Average over 5 cross-validation folds with 95% fold-based intervals. Higher is b
 
 A model outputs a probability; we need a cut-off above which a customer is flagged. **Assumption: a missed default costs 5 times as much as a false alarm** (cost 5 vs 1, in abstract units where false alarm = 1). The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off and the 'cost per customer' column change; the ranking of models is the more robust finding.
 
+- **Calibration**: out-of-fold predicted probabilities track observed default rates closely for all five models (Brier 0.133 to 0.139, best for the boosted trees).
+- **Imbalance**: class weighting or undersampling raises recall at a 0.5 cut-off (about 0.33-0.38 to 0.61-0.66) but lowers precision and distorts probabilities; with a cost-tuned cut-off all strategies cost about the same (0.546-0.560), so we use no resampling and tune the threshold.
+
 ![Gain and lift](../results/figures/gain_lift.png)
 
 **Cost sensitivity across FN:FP ratios (2:1, 5:1, 10:1)**:
@@ -75,13 +78,15 @@ Top individual feature drivers:
 - **worst payment delay (months) in the last 6 months**: higher values raise risk (mean |SHAP| = 0.129).
 - **bill amount, month 1 (1 = most recent)**: higher values lower risk (mean |SHAP| = 0.109).
 
+These are associations in the model, not causal effects; for example, larger recent bills appear to lower risk only after accounting for credit limit, utilization and payments.
+
 Sense check: recent late payments are among the top three drivers, as expected.
 
 ## Recommendation
 
-Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +0.6 to +0.9 percentage points more defaults, or +8 to +12 additional defaults per fold, in the top 10–30% of risk scores). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:
+Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). Comparing LightGBM vs lr_binned, LightGBM captures +0.6 to +0.9 pp (about 8 to 12 more defaults per fold) in the top 10% and 30%; the top-20% difference is not detectable (+0.62 pp, 95% CI [-0.17, +1.41] pp). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:
 
-1. **Stronger baseline**: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. Treating repayment statuses as categorical bins resolves non-monotonic risk and matches tree model cost efficiency without black-box complexity.
+1. **Stronger baseline**: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. Treating repayment statuses as categorical bins resolves non-monotonic risk and shows no detectable cost difference at 5:1 without black-box complexity.
 2. **Challenger to monitor**: Track LightGBM/XGBoost as a challenger to monitor. Its small ranking edge provides operational value for tiered interventions (such as early outreach and risk-tiered limits) while keeping the binned scorecard for core evaluation.
 
 ## Limitations

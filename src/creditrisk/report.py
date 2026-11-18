@@ -49,7 +49,7 @@ def main():
                   f"machine-learning alternatives (Random Forest, XGBoost, LightGBM) on {cfg['n_clean']:,} credit-card customers, "
                   f"predicting next-month default. On the assumed cost of mistakes (cost of false alarm = 1, cost of missed default = {c_fn:g}), "
                   f"cost differences between the machine-learning challengers and the binned scorecard (lr_binned) are "
-                  f"**not detectable** (all 95% intervals include zero). Gradient-boosted challengers maintain a small but "
+                  f"**not detectable at the assumed 5:1 ratio** (all 95% intervals include zero). Gradient-boosted challengers maintain a small but "
                   f"consistent ranking advantage (+0.010 ROC-AUC, +0.018 PR-AUC).", ""]
     else:
         lines += [f"Only {C.MODEL_LABELS[models[0]]} was evaluated.", ""]
@@ -119,6 +119,9 @@ def main():
               f"default costs {c_fn:g} times as much as a false alarm** (cost {c_fn:g} vs {c_fp:g}, in abstract units where false alarm = 1). "
               "The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off "
               "and the 'cost per customer' column change; the ranking of models is the more robust finding.", "",
+              "- **Calibration**: out-of-fold predicted probabilities track observed default rates closely for all five models (Brier 0.133 to 0.139, best for the boosted trees).",
+              "- **Imbalance**: class weighting or undersampling raises recall at a 0.5 cut-off (about 0.33-0.38 to 0.61-0.66) but lowers precision and distorts probabilities; "
+              "with a cost-tuned cut-off all strategies cost about the same (0.546-0.560), so we use no resampling and tune the threshold.", "",
               "![Gain and lift](../results/figures/gain_lift.png)", ""]
 
     cs_p = R / "cost_sensitivity.csv"
@@ -154,6 +157,7 @@ def main():
             way = "higher values raise risk" if r.direction_corr > 0.1 else (
                 "higher values lower risk" if r.direction_corr < -0.1 else "effect is not one-directional")
             lines.append(f"- **{desc}**: {way} (mean |SHAP| = {r.mean_abs_shap:.3f}).")
+        lines += ["", "These are associations in the model, not causal effects; for example, larger recent bills appear to lower risk only after accounting for credit limit, utilization and payments."]
         chk = R / "business_sense_check.json"
         if chk.exists():
             c = json.loads(chk.read_text())
@@ -164,11 +168,11 @@ def main():
     if len(models) > 1:
         lines += ["## Recommendation", "",
                   "Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). "
-                  "Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +0.6 to +0.9 percentage points more defaults, "
-                  "or +8 to +12 additional defaults per fold, in the top 10–30% of risk scores). "
+                  "Comparing LightGBM vs lr_binned, LightGBM captures +0.6 to +0.9 pp (about 8 to 12 more defaults per fold) in the top 10% and 30%; "
+                  "the top-20% difference is not detectable (+0.62 pp, 95% CI [-0.17, +1.41] pp). "
                   "Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:", "",
                   "1. **Stronger baseline**: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. "
-                  "Treating repayment statuses as categorical bins resolves non-monotonic risk and matches tree model cost efficiency without black-box complexity.",
+                  "Treating repayment statuses as categorical bins resolves non-monotonic risk and shows no detectable cost difference at 5:1 without black-box complexity.",
                   "2. **Challenger to monitor**: Track LightGBM/XGBoost as a challenger to monitor. Its small ranking edge provides operational value for tiered interventions "
                   "(such as early outreach and risk-tiered limits) while keeping the binned scorecard for core evaluation.", ""]
 
