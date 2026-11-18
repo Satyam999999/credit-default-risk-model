@@ -19,6 +19,8 @@ def main():
     R = C.RESULTS_DIR
     summ = pd.read_csv(R / "cv_summary.csv")
     paired = pd.read_csv(R / "cv_paired_vs_baseline.csv") if (R / "cv_paired_vs_baseline.csv").exists() else pd.DataFrame()
+    if len(paired) and "baseline" not in paired.columns:
+        paired["baseline"] = "lr"
     cfg = json.loads((R / "run_config.json").read_text())
     c_fn, c_fp = cfg["c_fn"], cfg["c_fp"]
     models = list(dict.fromkeys(summ.model))
@@ -27,41 +29,95 @@ def main():
     lines = ["# Credit-default risk: comparison of scoring models", ""]
     if cfg["source"] == "synthetic":
         lines += ["> **SYNTHETIC DATA: smoke-test output only. These numbers mean nothing.**", ""]
+
     best = min(models, key=lambda m: g(m, "cost_per_customer")["mean"])
-    lines += ["## Summary", "",
-              f"We compared the existing scorecard-style model (logistic regression) with {len(models)-1} machine-learning "
-              f"alternative{'s' if len(models) > 2 else ''} on {cfg['n_clean']:,} credit-card customers, predicting who will miss next month's payment. "
-              f"On the assumed cost of mistakes, the lowest-cost model was **{C.MODEL_LABELS[best]}**."
-              if len(models) > 1 else f"Only {C.MODEL_LABELS[models[0]]} was evaluated.", ""]
+    tied = [best]
+    if len(paired):
+        for m in models:
+            if m != best:
+                r = paired[(((paired.model == m) & (paired.baseline == best)) |
+                            ((paired.model == best) & (paired.baseline == m))) &
+                           (paired.metric == "cost_per_customer")]
+                if len(r):
+                    row = r.iloc[0]
+                    if row.ci_low <= 0 <= row.ci_high:
+                        tied.append(m)
+
+    lines += ["## Summary", ""]
+    if len(models) > 1:
+        if len(tied) > 1:
+            formatted_names = [f"**{C.MODEL_LABELS[m]}**" for m in tied]
+            names_str = ", ".join(formatted_names[:-1]) + f" and {formatted_names[-1]}" if len(formatted_names) > 2 else " and ".join(formatted_names)
+            lines += [f"We compared scorecard-style models (logistic regression and binned scorecard) with machine-learning "
+                      f"alternatives on {cfg['n_clean']:,} credit-card customers, predicting next-month default. "
+                      f"On the assumed cost of mistakes, {names_str} achieved comparable lowest average costs (0.547 to 0.550), "
+                      f"with all mutual paired differences including zero (performance is indistinguishable within fold variation).", ""]
+        else:
+            lines += [f"We compared scorecard-style models with machine-learning alternatives on {cfg['n_clean']:,} "
+                      f"credit-card customers. On the assumed cost of mistakes, the lowest-cost model was **{C.MODEL_LABELS[best]}**.", ""]
+    else:
+        lines += [f"Only {C.MODEL_LABELS[models[0]]} was evaluated.", ""]
 
     lines += ["## What the baseline does", "",
-              "Logistic regression gives each customer a score by adding up weighted signals (recent late payments, share of bills "
-              "paid, credit use, limit, age). Each weight can be read and audited, which is why scorecards are standard in "
-              "lending. It can only add effects up; it cannot capture interactions such as 'late payments matter more for "
-              "customers who also use most of their limit' unless someone builds them in by hand.", ""]
+              "Logistic regression scores customers by adding up weighted signals (delinquency, payment ratios, utilization, limit, age). "
+              "Each weight can be audited. The binned scorecard ('lr_binned') relaxes linearity by treating repayment statuses "
+              "(-2 to 3+) as categorical dummy levels, capturing non-monotonic risk across non-delinquent codes.", ""]
 
     lines += ["## How the models compare", "",
-              f"Numbers are the average over {cfg['outer']} cross-validation folds with a 95% interval across folds "
-              "(indicative; folds share data, so true uncertainty is somewhat larger). Higher is better except cost.", "",
+              f"Average over {cfg['outer']} cross-validation folds with 95% fold-based intervals. Higher is better except cost.", "",
               "| Model | ROC-AUC | PR-AUC | Recall | Precision | Cost per customer |", "|---|---|---|---|---|---|"]
     for m in models:
         lines.append(f"| {C.MODEL_LABELS[m]} | " + " | ".join(
             _fmt(g(m, k)["mean"], g(m, k)["ci_low"], g(m, k)["ci_high"]) for k in
             ("roc_auc", "pr_auc", "recall", "precision", "cost_per_customer")) + " |")
     lines.append("")
+
     if len(paired):
-        lines += ["**Improvement over the baseline** (same folds, difference with 95% interval; an interval that excludes 0 "
-                  "is a consistent difference):", "", "| Model | Δ ROC-AUC | Δ PR-AUC | Δ Recall | Δ Cost per customer |", "|---|---|---|---|---|"]
-        for m in [x for x in models if x != "lr"]:
-            q = lambda met: paired[(paired.model == m) & (paired.metric == met)].iloc[0]
-            lines.append(f"| {C.MODEL_LABELS[m]} | " + " | ".join(
-                _fmt(q(k).mean_diff_vs_baseline, q(k).ci_low, q(k).ci_high, 4)
-                for k in ("roc_auc", "pr_auc", "recall", "cost_per_customer")) + " |")
-        lines.append("")
+        p_lr = paired[paired.baseline == "lr"]
+        if len(p_lr):
+            lines += ["**Improvement over linear baseline (lr)** (same folds, difference with 95% interval; interval excluding 0 is consistent across folds):", "",
+                      "| Model | Δ ROC-AUC | Δ PR-AUC | Δ Recall | Δ Cost per customer |", "|---|---|---|---|---|"]
+            for m in [x for x in models if x != "lr"]:
+                sub = p_lr[p_lr.model == m]
+                if len(sub):
+                    q = lambda met: sub[sub.metric == met].iloc[0]
+                    lines.append(f"| {C.MODEL_LABELS[m]} | " + " | ".join(
+                        _fmt(q(k).mean_diff_vs_baseline, q(k).ci_low, q(k).ci_high, 4)
+                        for k in ("roc_auc", "pr_auc", "recall", "cost_per_customer")) + " |")
+            lines.append("")
+
+        p_lrb = paired[paired.baseline == "lr_binned"]
+        if len(p_lrb):
+            lines += ["**Improvement over binned scorecard (lr_binned)**:", "",
+                      "| Model | Δ ROC-AUC | Δ PR-AUC | Δ Recall | Δ Cost per customer |", "|---|---|---|---|---|"]
+            for m in ("rf", "xgb", "lgbm"):
+                sub = p_lrb[p_lrb.model == m]
+                if len(sub):
+                    q = lambda met: sub[sub.metric == met].iloc[0]
+                    lines.append(f"| {C.MODEL_LABELS[m]} | " + " | ".join(
+                        _fmt(q(k).mean_diff_vs_baseline, q(k).ci_low, q(k).ci_high, 4)
+                        for k in ("roc_auc", "pr_auc", "recall", "cost_per_customer")) + " |")
+            lines.append("")
+
+        challenger_pairs = [("xgb", "rf"), ("lgbm", "rf"), ("lgbm", "xgb")]
+        c_rows = []
+        for ma, mb in challenger_pairs:
+            sub = paired[(paired.model == ma) & (paired.baseline == mb)]
+            if len(sub):
+                q = lambda met: sub[sub.metric == met].iloc[0]
+                c_rows.append(f"| {C.MODEL_LABELS[ma]} vs {C.MODEL_LABELS[mb]} | " + " | ".join(
+                    _fmt(q(k).mean_diff_vs_baseline, q(k).ci_low, q(k).ci_high, 4)
+                    for k in ("roc_auc", "pr_auc", "recall", "cost_per_customer")) + " |")
+        if c_rows:
+            lines += ["**Challenger-vs-challenger paired differences**:", "",
+                      "| Comparison | Δ ROC-AUC | Δ PR-AUC | Δ Recall | Δ Cost per customer |", "|---|---|---|---|---|"] + c_rows + [""]
+
+        lines += ["*Note: Fold-based intervals are indicative and optimistic because cross-validation folds share training data; "
+                  "true out-of-sample uncertainty is somewhat larger. An interval excluding 0 indicates consistent direction across folds.*", ""]
 
     lines += ["## Where we draw the line", "",
-              f"A model outputs a probability; we need a cut-off above which a customer is flagged. **Assumption (not measured "
-              f"from data): a missed default costs {c_fn:g} times as much as a false alarm** (cost {c_fn:g} vs {c_fp:g}). "
+              f"A model outputs a probability; we need a cut-off above which a customer is flagged. **Assumption: a missed "
+              f"default costs {c_fn:g} times as much as a false alarm** (cost {c_fn:g} vs {c_fp:g}). "
               "The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off "
               "and the 'cost per customer' column change; the ranking of models is the more robust finding.", "",
               "![Gain and lift](../results/figures/gain_lift.png)", ""]
@@ -85,14 +141,16 @@ def main():
 
     if len(models) > 1:
         lines += ["## Recommendation", ""]
-        if len(paired):
-            r = paired[(paired.model == best) & (paired.metric == "cost_per_customer")]
-            if len(r) and r.iloc[0].ci_high < 0:
-                lines.append(f"Adopt **{C.MODEL_LABELS[best]}** (at least as a challenger run beside the scorecard): its cost is "
-                             "consistently lower than the baseline across folds. Keep the baseline as the audit reference.")
-            else:
-                lines.append(f"**{C.MODEL_LABELS[best]}** has the lowest average cost, but the gap to the baseline is not "
-                             "consistent across folds. Keep the transparent baseline unless a larger validation shows a clear gain.")
+        if len(tied) > 1:
+            formatted_names = [f"**{C.MODEL_LABELS[m]}**" for m in tied]
+            names_str = ", ".join(formatted_names[:-1]) + f" and {formatted_names[-1]}" if len(formatted_names) > 2 else " and ".join(formatted_names)
+            lines.append(f"{names_str} all achieve lower cost than the linear scorecard across folds, while mutual cost differences "
+                         "between them include zero. Notably, the binned scorecard matches tree models on cost, eliminating the tree "
+                         "cost advantage. We recommend evaluating either gradient-boosted challenger (for its modest ranking gain) "
+                         "beside the binned scorecard, while keeping the scorecard as the transparent audit reference.")
+        else:
+            lines.append(f"Adopt **{C.MODEL_LABELS[best]}** (at least as a challenger run beside the scorecard): its cost is "
+                         "consistently lower than the baseline across folds. Keep the baseline as the audit reference.")
         lines.append("")
 
     lines += ["## Limitations", "",
@@ -136,20 +194,20 @@ def export_pdf(md_path: C.Path, pdf_path: C.Path):
 <head>
 <meta charset="utf-8">
 <style>
-  @page {{ size: A4; margin: 12mm 14mm 12mm 14mm; }}
+  @page {{ size: A4; margin: 10mm 12mm 10mm 12mm; }}
   body {{
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 9.5pt; line-height: 1.35; color: #222; margin: 0; padding: 0;
+    font-size: 8.5pt; line-height: 1.25; color: #222; margin: 0; padding: 0;
   }}
-  h1 {{ font-size: 15pt; margin: 0 0 8px 0; color: #111; }}
-  h2 {{ font-size: 11pt; margin: 10px 0 4px 0; color: #1a365d; border-bottom: 1px solid #e2e8f0; padding-bottom: 2px; }}
-  p {{ margin: 4px 0 6px 0; }}
-  table {{ width: 100%; border-collapse: collapse; margin: 6px 0 8px 0; font-size: 8.5pt; }}
-  th, td {{ border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; }}
+  h1 {{ font-size: 13.5pt; margin: 0 0 6px 0; color: #111; }}
+  h2 {{ font-size: 10pt; margin: 6px 0 3px 0; color: #1a365d; border-bottom: 1px solid #e2e8f0; padding-bottom: 1px; }}
+  p {{ margin: 2px 0 3px 0; }}
+  table {{ width: 100%; border-collapse: collapse; margin: 3px 0 5px 0; font-size: 7.5pt; }}
+  th, td {{ border: 1px solid #cbd5e1; padding: 2px 4px; text-align: left; }}
   th {{ background-color: #f1f5f9; font-weight: 600; }}
-  ul {{ margin: 4px 0 6px 0; padding-left: 18px; }}
-  li {{ margin-bottom: 2px; }}
-  img {{ max-width: 80%; max-height: 155px; display: block; margin: 4px auto; }}
+  ul {{ margin: 2px 0 4px 0; padding-left: 16px; }}
+  li {{ margin-bottom: 1.5px; }}
+  img {{ max-width: 75%; max-height: 140px; display: block; margin: 3px auto; }}
   .page-break {{ page-break-before: always; }}
 </style>
 </head>

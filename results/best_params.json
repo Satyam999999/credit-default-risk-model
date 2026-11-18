@@ -35,6 +35,41 @@
     }
   },
   {
+    "model": "lr_binned",
+    "fold": 0,
+    "params": {
+      "clf__C": 0.14445251022763064
+    }
+  },
+  {
+    "model": "lr_binned",
+    "fold": 1,
+    "params": {
+      "clf__C": 0.10591250507775796
+    }
+  },
+  {
+    "model": "lr_binned",
+    "fold": 2,
+    "params": {
+      "clf__C": 0.09308886935248963
+    }
+  },
+  {
+    "model": "lr_binned",
+    "fold": 3,
+    "params": {
+      "clf__C": 2.3192095765814242
+    }
+  },
+  {
+    "model": "lr_binned",
+    "fold": 4,
+    "params": {
+      "clf__C": 0.04152686389834928
+    }
+  },
+  {
     "model": "rf",
     "fold": 0,
     "params": {

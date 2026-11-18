@@ -1,4 +1,4 @@
-MPLCONFIGDIR=/tmp/matplotlib PYTHONPATH=src python3 -m creditrisk.interpret --source file --path data/default_of_credit_card_clients.xls --shap-model lgbm 
+MPLCONFIGDIR=/tmp/matplotlib PYTHONPATH=src python3 -m creditrisk.interpret --source file --path data/default_of_credit_card_clients.xls --models lr,lr_binned,rf,xgb,lgbm --shap-model lgbm 
 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/shap/explainers/_tree.py:578: UserWarning: LightGBM binary classifier with TreeExplainer shap values output has changed to a list of ndarray
   warnings.warn(
 /Users/satyamghosh/Downloads/credit-default-risk/src/creditrisk/interpret.py:61: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.

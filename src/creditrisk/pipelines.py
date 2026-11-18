@@ -16,9 +16,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
-from .config import AMOUNT_COLS, CATEGORICAL, OTHER_NUMERIC, SEED
+from .config import AMOUNT_COLS, CATEGORICAL, OTHER_NUMERIC, PAY, SEED
 
 STRATEGIES = ["none", "class_weight", "undersample", "smote"]
+PAY_LEVELS = [-2, -1, 0, 1, 2, 3]
 
 
 def signed_log1p(x):
@@ -26,20 +27,43 @@ def signed_log1p(x):
     return np.sign(x) * np.log1p(np.abs(x))
 
 
+def clip_pay_levels(x):
+    """Clip repayment status codes to [-2, 3], where 3 represents 3+ months delay."""
+    arr = np.asarray(x)
+    arr_filled = np.where(np.isnan(arr), 0, arr)
+    return np.clip(arr_filled.astype(int), -2, 3)
+
+
 def build_preprocessor(model: str, strategy: str = "none") -> ColumnTransformer:
     cat = ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), CATEGORICAL)
-    if model == "lr":
+    if model == "lr_binned":
+        amount = Pipeline([("slog", FunctionTransformer(signed_log1p, feature_names_out="one-to-one")),
+                           ("scale", StandardScaler())])
+        other_cols = [c for c in OTHER_NUMERIC if c not in PAY]
+        other = Pipeline([("impute", SimpleImputer(strategy="median", add_indicator=True)),
+                          ("scale", StandardScaler())])
+        pay_bin = Pipeline([
+            ("clip", FunctionTransformer(clip_pay_levels, feature_names_out="one-to-one")),
+            ("ohe", OneHotEncoder(categories=[PAY_LEVELS] * len(PAY), handle_unknown="ignore", sparse_output=False))
+        ])
+        pre = ColumnTransformer([("amt", amount, AMOUNT_COLS), ("num", other, other_cols), cat, ("pay_bin", pay_bin, PAY)],
+                                verbose_feature_names_out=False)
+    elif model == "lr":
         amount = Pipeline([("slog", FunctionTransformer(signed_log1p, feature_names_out="one-to-one")),
                            ("scale", StandardScaler())])
         other = Pipeline([("impute", SimpleImputer(strategy="median", add_indicator=True)),
                           ("scale", StandardScaler())])
+        pre = ColumnTransformer([("amt", amount, AMOUNT_COLS), ("num", other, OTHER_NUMERIC), cat],
+                                verbose_feature_names_out=False)
     elif model == "rf" or strategy == "smote":
         amount = "passthrough"
         other = SimpleImputer(strategy="median", add_indicator=True)
+        pre = ColumnTransformer([("amt", amount, AMOUNT_COLS), ("num", other, OTHER_NUMERIC), cat],
+                                verbose_feature_names_out=False)
     else:  # xgb / lgbm handle NaN natively
         amount, other = "passthrough", "passthrough"
-    pre = ColumnTransformer([("amt", amount, AMOUNT_COLS), ("num", other, OTHER_NUMERIC), cat],
-                            verbose_feature_names_out=False)
+        pre = ColumnTransformer([("amt", amount, AMOUNT_COLS), ("num", other, OTHER_NUMERIC), cat],
+                                verbose_feature_names_out=False)
     pre.set_output(transform="pandas")
     return pre
 
@@ -59,7 +83,7 @@ def _balanced_xgb():
 
 def make_classifier(model: str, strategy: str = "none", seed: int = SEED):
     weighted = strategy == "class_weight"
-    if model == "lr":
+    if model in ("lr", "lr_binned"):
         return LogisticRegression(max_iter=3000, class_weight="balanced" if weighted else None, random_state=seed)
     if model == "rf":
         return RandomForestClassifier(n_estimators=300, n_jobs=1, random_state=seed,
@@ -102,6 +126,7 @@ def make_pipeline(model: str, strategy: str = "none", seed: int = SEED):
 # Hyperparameter search spaces (RandomizedSearchCV); keys address the 'clf' step.
 SEARCH_SPACES = {
     "lr": {"clf__C": loguniform(1e-3, 1e2)},
+    "lr_binned": {"clf__C": loguniform(1e-3, 1e2)},
     "rf": {"clf__n_estimators": randint(200, 500), "clf__max_depth": [6, 8, 12, 16, None],
            "clf__min_samples_leaf": randint(5, 60), "clf__max_features": ["sqrt", 0.3, 0.5]},
     "xgb": {"clf__n_estimators": randint(150, 600), "clf__learning_rate": loguniform(0.01, 0.2),
@@ -117,6 +142,7 @@ SEARCH_SPACES = {
 # Fixed, sensible parameters for the imbalance study (isolates the effect of the strategy).
 DEFAULT_PARAMS = {
     "lr": {"clf__C": 1.0},
+    "lr_binned": {"clf__C": 1.0},
     "rf": {"clf__n_estimators": 300, "clf__max_depth": 8, "clf__min_samples_leaf": 20},
     "xgb": {"clf__n_estimators": 300, "clf__learning_rate": 0.05, "clf__max_depth": 4,
             "clf__subsample": 0.8, "clf__colsample_bytree": 0.8},

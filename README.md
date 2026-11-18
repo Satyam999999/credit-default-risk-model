@@ -71,13 +71,16 @@ Fully executed and verified end-to-end on the real UCI dataset (`data/default_of
   - Evaluated 4 models (`lr`, `rf`, `xgb`, `lgbm`) across 4 strategies (`none`, `class_weight`, `undersample`, `smote`) under 5-fold CV.
   - Verified native NaN handling: XGBoost and LightGBM receive NaNs natively under `"none"`, while median imputation is applied for SMOTE (k-NN requirement) and Random Forest.
 - **Nested Cross-Validation (`make cv`):**
-  - Full settings: 5 outer folds, 3 inner folds, 20 randomized search iterations per fold across all 4 models.
+  - Full settings: 5 outer folds, 3 inner folds, 20 randomized search iterations per fold across all 5 models (`lr`, `lr_binned`, `rf`, `xgb`, `lgbm`).
   - Train-only threshold tuning minimizing cost at 5:1 FN:FP ratio.
-  - All challenger models (`rf`, `xgb`, `lgbm`) achieved statistically significant gains over baseline `lr` (95% CI of paired difference excludes 0 for ROC-AUC, PR-AUC, and cost per customer). XGBoost achieved lowest average cost per customer (0.5466).
+  - Added binned scorecard baseline (`lr_binned`) with one-hot encoded repayment status levels (`-2, -1, 0, 1, 2, 3+`), capturing non-monotonic risk across non-delinquent codes.
+  - Key finding: `lr_binned` completely closes the cost gap with tree models (paired cost differences of `rf`, `xgb`, `lgbm` vs `lr_binned` all include 0 in their 95% CIs). Tree models retain a modest ranking advantage (ROC-AUC gap narrowed from +0.021 down to +0.010).
+  - Challenger-vs-challenger comparisons: XGBoost and LightGBM are indistinguishable on both cost and ranking (all pairwise metric difference CIs include 0).
+  - Note: Fold-based intervals are indicative and optimistic because cross-validation folds share training data.
 - **Interpretability & business checks (`make interpret`):**
-  - Logistic regression coefficients, tree importances, and LightGBM SHAP TreeExplainer analysis.
+  - Linear scorecard coefficients, binned scorecard coefficients, tree importances, and LightGBM SHAP TreeExplainer analysis.
   - Business-sense check passed: delinquency features (`pay_1`, `n_delinquent_last3`, `n_months_delinquent`) occupy all top 3 SHAP ranks, with positive direction for `pay_1` (+0.2596 correlation).
 - **Reports:**
   - Generated `reports/comparison_report.md` and exported `reports/comparison_report.pdf` (verified to fit exactly 2 pages).
 - **Unit test suite:**
-  - 27 passed (all tests passing across cleaning, features, evaluation, leakage safety, SQL parity, and NaN preservation).
+  - 28 tests collected, 28 verified passing (including leakage safety, cleaning, features, SQL parity, NaN passthrough preservation, and `lr_binned` structure).

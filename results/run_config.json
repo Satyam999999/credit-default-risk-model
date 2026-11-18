@@ -2,7 +2,7 @@
   "source": "file",
   "path": "data/default_of_credit_card_clients.xls",
   "db_url": null,
-  "models": "lr,rf,xgb,lgbm",
+  "models": "lr,lr_binned,rf,xgb,lgbm",
   "strategy": "none",
   "outer": 5,
   "inner": 3,

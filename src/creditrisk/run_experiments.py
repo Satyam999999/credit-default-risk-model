@@ -59,16 +59,35 @@ def summarize(folds: pd.DataFrame, baseline: str = "lr") -> tuple[pd.DataFrame, 
             mean, lo, hi = fold_ci(g[met])
             srows.append({"model": m, "metric": met, "mean": mean, "ci_low": lo, "ci_high": hi})
     summ = pd.DataFrame(srows)
+
     prow = []
-    if baseline in set(folds["model"]):
-        b = folds[folds.model == baseline].sort_values("fold")
-        for m, g in folds.groupby("model", sort=False):
-            if m == baseline:
-                continue
-            g = g.sort_values("fold")
-            for met in metrics:
-                mean, lo, hi = fold_ci(g[met].to_numpy() - b[met].to_numpy())
-                prow.append({"model": m, "metric": met, "mean_diff_vs_baseline": mean, "ci_low": lo, "ci_high": hi})
+    all_models = list(dict.fromkeys(folds["model"]))
+    pairs = []
+    if "lr" in all_models:
+        for m in all_models:
+            if m != "lr":
+                pairs.append((m, "lr"))
+    if "lr_binned" in all_models:
+        for m in ("rf", "xgb", "lgbm"):
+            if m in all_models and (m, "lr_binned") not in pairs:
+                pairs.append((m, "lr_binned"))
+    for m_a, m_b in [("xgb", "rf"), ("lgbm", "rf"), ("lgbm", "xgb")]:
+        if m_a in all_models and m_b in all_models and (m_a, m_b) not in pairs:
+            pairs.append((m_a, m_b))
+
+    for m, b in pairs:
+        gm = folds[folds.model == m].sort_values("fold")
+        gb = folds[folds.model == b].sort_values("fold")
+        for met in metrics:
+            mean, lo, hi = fold_ci(gm[met].to_numpy() - gb[met].to_numpy())
+            prow.append({
+                "model": m,
+                "baseline": b,
+                "metric": met,
+                "mean_diff_vs_baseline": mean,
+                "ci_low": lo,
+                "ci_high": hi,
+            })
     return summ, pd.DataFrame(prow)
 
 
@@ -76,7 +95,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", choices=["file", "db", "synthetic"], default="file")
     ap.add_argument("--path"); ap.add_argument("--db-url")
-    ap.add_argument("--models", default="lr,rf,xgb,lgbm")
+    ap.add_argument("--models", default="lr,lr_binned,rf,xgb,lgbm")
     ap.add_argument("--strategy", default="none", choices=["none", "class_weight", "undersample", "smote"])
     ap.add_argument("--outer", type=int, default=5); ap.add_argument("--inner", type=int, default=3)
     ap.add_argument("--n-iter", type=int, default=20)

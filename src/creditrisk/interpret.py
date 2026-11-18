@@ -103,9 +103,9 @@ def main(argv=None):
     C.RESULTS_DIR.mkdir(exist_ok=True, parents=True); C.FIGURES_DIR.mkdir(exist_ok=True, parents=True)
     for m in a.models.split(","):
         pipe = fit_final(ds.X, ds.y, m, a.n_iter, a.seed)
-        if m == "lr":
-            t = lr_coefficients(pipe); t.to_csv(C.RESULTS_DIR / "lr_coefficients.csv", index=False)
-            bar(t, "coef_per_std", "feature", "Logistic regression coefficients (per 1 SD)", C.FIGURES_DIR / "lr_coefficients.png")
+        if m in ("lr", "lr_binned"):
+            t = lr_coefficients(pipe); t.to_csv(C.RESULTS_DIR / f"{m}_coefficients.csv", index=False)
+            bar(t, "coef_per_std", "feature", f"{C.MODEL_LABELS[m]} coefficients (per 1 SD)", C.FIGURES_DIR / f"{m}_coefficients.png")
         else:
             t = tree_importances(pipe); t.to_csv(C.RESULTS_DIR / f"importances_{m}.csv", index=False)
             bar(t, "importance", "feature", f"{C.MODEL_LABELS[m]} feature importance", C.FIGURES_DIR / f"importance_{m}.png")

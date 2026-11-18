@@ -51,6 +51,7 @@ DELINQUENCY_FEATURES = ["pay_1", "pay_2", "n_months_delinquent", "n_delinquent_l
 
 MODEL_LABELS = {
     "lr": "Logistic regression (baseline)",
+    "lr_binned": "Binned logistic regression (scorecard)",
     "rf": "Random forest",
     "xgb": "XGBoost",
     "lgbm": "LightGBM",

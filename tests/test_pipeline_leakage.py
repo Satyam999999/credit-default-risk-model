@@ -80,6 +80,18 @@ class TestLeakageSafety(unittest.TestCase):
         Xt_rf = p_rf.named_steps["prep"].fit_transform(X_with_nan)
         self.assertFalse(Xt_rf.isna().any().any(), "rf under 'none' must impute NaNs")
 
+    def test_lr_binned_pipeline_structure_and_scoring(self):
+        """lr_binned must one-hot encode pay_1..pay_6 into 6 levels and run CV safely."""
+        pipe = make_pipeline("lr_binned")
+        Xt = pipe.named_steps["prep"].fit_transform(self.ds.X)
+        cols = list(Xt.columns)
+        for k in range(1, 7):
+            for lvl in (-2, -1, 0, 1, 2, 3):
+                self.assertIn(f"pay_{k}_{lvl}", cols)
+        cv = StratifiedKFold(3, shuffle=True, random_state=0)
+        s = cross_val_score(pipe, self.ds.X, self.ds.y, cv=cv, scoring="roc_auc")
+        self.assertTrue((s > 0.55).all(), s)
+
 
 
 if __name__ == "__main__":
