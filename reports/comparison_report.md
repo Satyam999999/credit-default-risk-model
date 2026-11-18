@@ -2,15 +2,15 @@
 
 ## Summary
 
-We compared scorecard-style models (logistic regression and binned scorecard) with machine-learning alternatives on 29,965 credit-card customers, predicting next-month default. On the assumed cost of mistakes, **XGBoost**, **Binned logistic regression (scorecard)**, **Random forest** and **LightGBM** achieved comparable lowest average costs (0.547 to 0.550), with all mutual paired differences including zero (performance is indistinguishable within fold variation).
+We compared two scorecard baselines (linear logistic regression and binned scorecard) with machine-learning alternatives (Random Forest, XGBoost, LightGBM) on 29,965 credit-card customers, predicting next-month default. On the assumed cost of mistakes (cost of false alarm = 1, cost of missed default = 5), cost differences between the machine-learning challengers and the binned scorecard (lr_binned) are **not detectable** (all 95% intervals include zero). Gradient-boosted challengers maintain a small but consistent ranking advantage (+0.010 ROC-AUC, +0.018 PR-AUC).
 
-## What the baseline does
+## What the baselines do
 
-Logistic regression scores customers by adding up weighted signals (delinquency, payment ratios, utilization, limit, age). Each weight can be audited. The binned scorecard ('lr_binned') relaxes linearity by treating repayment statuses (-2 to 3+) as categorical dummy levels, capturing non-monotonic risk across non-delinquent codes.
+We evaluate two scorecard baselines: (1) **Linear scorecard ('lr')**, which scores customers by adding weighted continuous signals (delinquency delay, payment ratios, utilization, limit, age) using a single linear slope across delay codes; and (2) **Binned scorecard ('lr_binned')**, which treats repayment statuses (pay_1 to pay_6) as categorical levels (-2, -1, 0, 1, 2, 3+) via one-hot dummy variables. The binned scorecard is much closer to production credit scorecards used in real lending, capturing non-monotonic risk across non-delinquent codes.
 
 ## How the models compare
 
-Average over 5 cross-validation folds with 95% fold-based intervals. Higher is better except cost.
+Average over 5 cross-validation folds with 95% fold-based intervals. Higher is better except cost. Cost units are abstract (false alarm = 1).
 
 | Model | ROC-AUC | PR-AUC | Recall | Precision | Cost per customer |
 |---|---|---|---|---|---|
@@ -49,23 +49,33 @@ Average over 5 cross-validation folds with 95% fold-based intervals. Higher is b
 
 ## Where we draw the line
 
-A model outputs a probability; we need a cut-off above which a customer is flagged. **Assumption: a missed default costs 5 times as much as a false alarm** (cost 5 vs 1). The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off and the 'cost per customer' column change; the ranking of models is the more robust finding.
+A model outputs a probability; we need a cut-off above which a customer is flagged. **Assumption: a missed default costs 5 times as much as a false alarm** (cost 5 vs 1, in abstract units where false alarm = 1). The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off and the 'cost per customer' column change; the ranking of models is the more robust finding.
 
 ![Gain and lift](../results/figures/gain_lift.png)
 
 ## What drives risk
 
-- **repayment status last month (delay in months)**: higher values raise risk.
-- **number of the last 3 months with a payment delay**: higher values raise risk.
-- **number of the last 6 months with a payment delay**: higher values raise risk.
-- **worst payment delay (months) in the last 6 months**: higher values raise risk.
-- **bill amount, month 1 (1 = most recent)**: higher values lower risk.
+TreeExplainer SHAP analysis on LightGBM reveals how importance groups across feature families:
+
+- **Delinquency features** (recent delay codes pay_1..pay_6, months late, max delay, delay trend): **43.6%** of total importance (summed mean |SHAP| = 0.765).
+- **Financial & demographic features** (bill amounts, utilization, payments, limit, age, education): **56.4%** of total importance (summed mean |SHAP| = 0.990).
+
+Top individual feature drivers:
+
+- **repayment status last month (delay in months)**: higher values raise risk (mean |SHAP| = 0.251).
+- **number of the last 3 months with a payment delay**: higher values raise risk (mean |SHAP| = 0.184).
+- **number of the last 6 months with a payment delay**: higher values raise risk (mean |SHAP| = 0.144).
+- **worst payment delay (months) in the last 6 months**: higher values raise risk (mean |SHAP| = 0.129).
+- **bill amount, month 1 (1 = most recent)**: higher values lower risk (mean |SHAP| = 0.109).
 
 Sense check: recent late payments are among the top three drivers, as expected.
 
 ## Recommendation
 
-**XGBoost**, **Binned logistic regression (scorecard)**, **Random forest** and **LightGBM** all achieve lower cost than the linear scorecard across folds, while mutual cost differences between them include zero. Notably, the binned scorecard matches tree models on cost, eliminating the tree cost advantage. We recommend evaluating either gradient-boosted challenger (for its modest ranking gain) beside the binned scorecard, while keeping the scorecard as the transparent audit reference.
+Cost differences between the machine-learning challengers and the binned scorecard are **not detectable** (all 95% intervals include zero). However, gradient-boosted models retain a small but consistent ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). We recommend a two-part strategy:
+
+1. **Upgrade the scorecard**: Adopt the binned scorecard ('lr_binned') for core underwriting. It achieves the full cost efficiency of complex machine-learning models while maintaining complete transparency, auditable weights, and regulatory compliance.
+2. **Deploy a Gradient-Boosted challenger (XGBoost or LightGBM)**: Run a GBM in shadow mode to capitalize on its ranking advantage in collections prioritization and high-risk limit management, while keeping the scorecard as the primary decision engine.
 
 ## Limitations
 

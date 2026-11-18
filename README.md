@@ -53,9 +53,51 @@ No database? Use `--source file --path data/<uci file>` on any command; features
 - **Resampling** uses `imbalanced-learn`'s Pipeline (a subclass of scikit-learn's), because scikit-learn's own Pipeline cannot resample.
 - Hyperparameter search is `RandomizedSearchCV` (not Optuna), to stay scikit-learn-native.
 
+## Results
+
+Results from the full-settings nested cross-validation (5 outer folds, 3 inner folds, 20 randomized search iterations per fold, train-only cost-based threshold tuning with missed default = 5, false alarm = 1). Intervals are 95% fold-based intervals:
+
+### Cross-Validation Summary (`results/cv_summary.csv`)
+
+| Model | ROC-AUC | PR-AUC | Recall | Precision | Cost per customer |
+|---|---|---|---|---|---|
+| **Logistic regression (`lr`)** | 0.767 (0.751 to 0.784) | 0.522 (0.505 to 0.539) | 0.744 (0.712 to 0.776) | 0.369 (0.348 to 0.391) | 0.565 (0.539 to 0.591) |
+| **Binned scorecard (`lr_binned`)** | 0.778 (0.768 to 0.788) | 0.547 (0.534 to 0.560) | 0.746 (0.720 to 0.771) | 0.383 (0.365 to 0.400) | 0.548 (0.524 to 0.572) |
+| **Random forest (`rf`)** | 0.786 (0.774 to 0.798) | 0.561 (0.546 to 0.576) | 0.747 (0.703 to 0.791) | 0.383 (0.345 to 0.421) | 0.550 (0.532 to 0.568) |
+| **XGBoost (`xgb`)** | 0.788 (0.776 to 0.799) | 0.565 (0.548 to 0.581) | 0.765 (0.733 to 0.796) | 0.373 (0.349 to 0.397) | 0.547 (0.526 to 0.568) |
+| **LightGBM (`lgbm`)** | 0.788 (0.776 to 0.799) | 0.566 (0.548 to 0.584) | 0.764 (0.733 to 0.796) | 0.373 (0.338 to 0.408) | 0.548 (0.523 to 0.573) |
+
+### Paired Differences vs Binned Scorecard (`lr_binned`)
+
+Paired fold differences ($Model - lr\_binned$). Cost differences are **not detectable** (all 95% intervals cross zero), while tree models maintain a small, consistent ranking edge:
+
+| Challenger vs `lr_binned` | Δ ROC-AUC | Δ PR-AUC | Δ Recall | Δ Cost per customer |
+|---|---|---|---|---|
+| **Random forest** | +0.0083 (0.0041 to 0.0124) | +0.0138 (0.0055 to 0.0221) | +0.0012 (-0.0524 to 0.0548) | +0.0017 (-0.0085 to 0.0119) |
+| **XGBoost** | +0.0096 (0.0052 to 0.0140) | +0.0173 (0.0095 to 0.0250) | +0.0192 (-0.0336 to 0.0719) | -0.0016 (-0.0159 to 0.0128) |
+| **LightGBM** | +0.0097 (0.0056 to 0.0138) | +0.0187 (0.0091 to 0.0282) | +0.0186 (-0.0272 to 0.0643) | 0.0000 (-0.0146 to 0.0146) |
+
+### Operational Ranking (Defaults Captured in Top Deciles)
+
+Defaults captured out of 1,326 defaults per fold:
+- **Top 10%**: `lr_binned` captures 31.4% (416.0); `lgbm` captures 32.1% (426.2). Difference: +0.77% (+10.2 defaults, 95% CI: [+2.7, +17.7]).
+- **Top 20%**: `lr_binned` captures 51.1% (677.2); `lgbm` captures 51.7% (685.4). Difference: +0.62% (+8.2 defaults, 95% CI: [-2.3, +18.7], includes 0).
+- **Top 30%**: `lr_binned` captures 62.9% (833.4); `lgbm` captures 63.8% (845.4). Difference: +0.90% (+12.0 defaults, 95% CI: [+5.5, +18.5]).
+
+### Cost-Ratio Sensitivity (`results/cost_sensitivity.csv`)
+
+Train-only threshold selection re-optimized independently at FN:FP ratios 2, 5, and 10:
+- **Ratio 2:1**: Tree models hold a slight cost advantage vs `lr_binned` ($\approx -0.006$ cost units, 95% CI: [-0.010, -0.002]).
+- **Ratio 5:1**: Cost differences between tree models and `lr_binned` are not detectable (all CIs cross zero).
+- **Ratio 10:1**: Tree models show lower average cost ($\approx -0.021$ units), but fold variance is wide and CIs cross zero (e.g. `lgbm` vs `lr_binned`: [-0.050, +0.008]).
+
 ## Limitations
 
-One dataset, one country (Taiwan, 2005). Random, not time-based, validation. No fairness or regulatory analysis; sex, age and marital status are included as features (restricted in many lending jurisdictions). The cost ratio is an assumption. Delay codes approximate days-past-due at monthly granularity. See `docs/LEAKAGE.md` for residual risks.
+- **Dataset scope**: One dataset from one bank in Taiwan (2005); results may not generalize across different economic environments or credit products.
+- **Validation structure**: Stratified cross-validation, not time-based out-of-time (OOT) validation. Performance under macroeconomic stress is untested.
+- **Fairness & regulation**: Age, sex, and marital status are included in the feature set; in many jurisdictions, their inclusion is legally restricted.
+- **Cost ratio assumption**: Abstract cost ratio (FN=5, FP=1) is assumed; real charge-off losses and customer intervention costs vary by exposure and recovery rate.
+- **Monthly granularity**: Delay codes approximate days-past-due at monthly increments. See `docs/LEAKAGE.md` for residual risks.
 
 ## Verification status of this code
 
