@@ -12,4 +12,4 @@ cv:          ; $(PY) -m creditrisk.run_experiments --source $(SOURCE) --path $(F
 interpret:   ; $(PY) -m creditrisk.interpret --source $(SOURCE) --path $(FILE) --models lr,lr_binned,rf,xgb,lgbm --shap-model lgbm $(FAST)
 report:      ; $(PY) -m creditrisk.report
 all: test leakage imbalance cv interpret report
-smoke:       ; $(PY) -m creditrisk.run_experiments --source synthetic --models lr,rf --fast   # plumbing only
+smoke:       ; $(PY) -m creditrisk.run_experiments --source synthetic --models lr,rf --fast --out /tmp/smoke   # plumbing only
