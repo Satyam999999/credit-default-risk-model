@@ -53,6 +53,12 @@ def _positive_class(sv):
 
 
 def shap_analysis(pipe, X, model, n_sample=3000, seed=C.SEED, top_dep=4):
+    """Compute SHAP values using TreeExplainer.
+    
+    NOTE: SHAP values are computed from the final model refit on ALL training data,
+    explaining a fixed sample of n_sample=3000 rows (seed=C.SEED). They are NOT
+    computed out-of-fold. Performance and calibration metrics come from out-of-fold CV.
+    """
     import shap
     Xs = X.sample(min(n_sample, len(X)), random_state=seed)
     Xt = pipe.named_steps["prep"].transform(Xs)

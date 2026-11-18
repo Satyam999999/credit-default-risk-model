@@ -198,11 +198,17 @@
 <div class="page-break"></div><h2>Where we draw the line</h2>
 <p>A model outputs a probability; we need a cut-off above which a customer is flagged. <strong>Assumption: a missed default costs 5 times as much as a false alarm</strong> (cost 5 vs 1, in abstract units where false alarm = 1). The cut-off is chosen on training data only to minimise that cost. If the real ratio differs, the cut-off and the 'cost per customer' column change; the ranking of models is the more robust finding.</p>
 <p><img alt="Gain and lift" src="file:///Users/satyamghosh/Downloads/credit-default-risk/results/figures/gain_lift.png" /></p>
-<h2>What drives risk</h2>
-<p>TreeExplainer SHAP analysis on LightGBM reveals how importance groups across feature families:</p>
+<p><strong>Cost sensitivity across FN:FP ratios (2:1, 5:1, 10:1)</strong>:</p>
 <ul>
-<li><strong>Delinquency features</strong> (recent delay codes pay_1..pay_6, months late, max delay, delay trend): <strong>43.6%</strong> of total importance (summed mean |SHAP| = 0.765).</li>
-<li><strong>Financial &amp; demographic features</strong> (bill amounts, utilization, payments, limit, age, education): <strong>56.4%</strong> of total importance (summed mean |SHAP| = 0.990).</li>
+<li><strong>5:1 ratio (primary)</strong>: No detectable cost difference between tree models and lr_binned (all 95% intervals include zero). The gain from binning appears at 5:1, where linear lr incurs a +0.0168 cost penalty.</li>
+<li><strong>2:1 ratio (low penalty)</strong>: Tree models are slightly better and never worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]). Gain from binning does not appear at 2:1 (linear lr vs lr_binned difference is -0.0003, CI includes zero).</li>
+<li><strong>10:1 ratio (high penalty)</strong>: Tree models show lower average cost (~ -0.021 units), but fold variance is wide and the difference is not detectable (CI includes zero).</li>
+</ul>
+<h2>What drives risk</h2>
+<p>TreeExplainer SHAP values from a final LightGBM model refit on all data, explaining a fixed sample of 3,000 customers (not out-of-fold), show that recent delinquency is the largest single driver (pay_1 mean |SHAP| = 0.251). Grouping the 39 transformed features into two families:</p>
+<ul>
+<li><strong>Delinquency features (10 features)</strong> (recent delay codes pay_1..pay_6, months late, max delay, delay trend): <strong>43.6%</strong> of total importance (~44%, summed mean |SHAP| = 0.765).</li>
+<li><strong>Financial &amp; demographic features (29 transformed features)</strong> (bills, utilization, payments, limit, age, one-hot categories): <strong>56.4%</strong> of total importance (summed mean |SHAP| = 0.990).</li>
 </ul>
 <p>Top individual feature drivers:</p>
 <ul>
@@ -214,18 +220,18 @@
 </ul>
 <p>Sense check: recent late payments are among the top three drivers, as expected.</p>
 <h2>Recommendation</h2>
-<p>Cost differences between the machine-learning challengers and the binned scorecard are <strong>not detectable</strong> (all 95% intervals include zero). However, gradient-boosted models retain a small but consistent ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). We recommend a two-part strategy:</p>
+<p>Cost differences between tree models and the binned scorecard are <strong>not detectable</strong> at 5:1 (all 95% intervals include zero). Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:</p>
 <ol>
-<li><strong>Upgrade the scorecard</strong>: Adopt the binned scorecard ('lr_binned') for core underwriting. It achieves the full cost efficiency of complex machine-learning models while maintaining complete transparency, auditable weights, and regulatory compliance.</li>
-<li><strong>Deploy a Gradient-Boosted challenger (XGBoost or LightGBM)</strong>: Run a GBM in shadow mode to capitalize on its ranking advantage in collections prioritization and high-risk limit management, while keeping the scorecard as the primary decision engine.</li>
+<li><strong>Stronger baseline</strong>: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. Treating repayment statuses as categorical bins resolves non-monotonic risk and matches tree model cost efficiency without black-box complexity.</li>
+<li><strong>Challenger to monitor</strong>: Track LightGBM/XGBoost as a challenger to monitor. Its small ranking edge provides operational value for tiered interventions (such as early outreach and risk-tiered limits) while keeping the binned scorecard for core evaluation.</li>
 </ol>
 <h2>Limitations</h2>
 <ul>
-<li>One dataset from one bank in one country (Taiwan, 2005); results may not transfer.</li>
-<li>Random cross-validation, <strong>no time-based validation</strong>: we have not tested performance on later periods or under economic change.</li>
-<li><strong>No fairness or regulatory analysis.</strong> Sex, age and marital status are in the data; using them may be restricted in real lending.</li>
-<li>The cost ratio is an assumption; real costs vary by exposure and recovery.</li>
-<li>'Days past due' is approximated by the dataset's repayment-status codes (months of delay).</li>
+<li><strong>Single dataset</strong>: One dataset from one bank in Taiwan (2005); findings may not transfer to other credit portfolios.</li>
+<li><strong>No time-based validation</strong>: Evaluated via cross-validation, not time-based cohorts under economic shift.</li>
+<li><strong>No fairness or regulatory review</strong>: Age, sex, and marital status are present in the data without compliance screening.</li>
+<li><strong>Assumed cost ratio</strong>: Thresholds depend on assumed cost weights (missed default = 5, false alarm = 1).</li>
+<li><strong>Repayment granularity</strong>: Monthly status codes (-2 to 8) serve as an approximation for exact days past due.</li>
 </ul>
 </body>
 </html>

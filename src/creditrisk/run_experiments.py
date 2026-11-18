@@ -137,12 +137,14 @@ def main(argv=None):
     print(summ.pivot(index="model", columns="metric", values="mean").round(4).to_string())
 
     from . import plots
+    fig_dir = out / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
     ms = [m for m in models]
-    plots.plot_roc_pr(oof, ms, C.FIGURES_DIR / "roc_pr.png")
-    plots.plot_gain_lift(oof, ms, C.FIGURES_DIR / "gain_lift.png")
-    plots.plot_confusion(oof, ms, C.FIGURES_DIR / "confusion_matrices.png")
-    plots.plot_calibration(oof, ms, C.FIGURES_DIR / "calibration.png")
-    plots.plot_ks(oof, ms[-1], C.FIGURES_DIR / f"ks_{ms[-1]}.png")
+    plots.plot_roc_pr(oof, ms, fig_dir / "roc_pr.png")
+    plots.plot_gain_lift(oof, ms, fig_dir / "gain_lift.png")
+    plots.plot_confusion(oof, ms, fig_dir / "confusion_matrices.png")
+    plots.plot_calibration(oof, ms, fig_dir / "calibration.png")
+    plots.plot_ks(oof, ms[-1], fig_dir / f"ks_{ms[-1]}.png")
 
 
 if __name__ == "__main__":

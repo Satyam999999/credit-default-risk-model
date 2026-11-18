@@ -121,6 +121,15 @@ def main():
               "and the 'cost per customer' column change; the ranking of models is the more robust finding.", "",
               "![Gain and lift](../results/figures/gain_lift.png)", ""]
 
+    cs_p = R / "cost_sensitivity.csv"
+    if cs_p.exists():
+        lines += ["**Cost sensitivity across FN:FP ratios (2:1, 5:1, 10:1)**:", "",
+                  "- **5:1 ratio (primary)**: No detectable cost difference between tree models and lr_binned (all 95% intervals include zero). "
+                  "The gain from binning appears at 5:1, where linear lr incurs a +0.0168 cost penalty.",
+                  "- **2:1 ratio (low penalty)**: Tree models are slightly better and never worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]). "
+                  "Gain from binning does not appear at 2:1 (linear lr vs lr_binned difference is -0.0003, CI includes zero).",
+                  "- **10:1 ratio (high penalty)**: Tree models show lower average cost (~ -0.021 units), but fold variance is wide and the difference is not detectable (CI includes zero).", ""]
+
     shap_p = R / "shap_summary.csv"
     if shap_p.exists():
         df_s = pd.read_csv(shap_p)
@@ -129,11 +138,15 @@ def main():
         d_shap = df_s[is_d]["mean_abs_shap"].sum()
         r_shap = df_s[~is_d]["mean_abs_shap"].sum()
         tot = d_shap + r_shap
+        n_d = int(is_d.sum())
+        n_r = int((~is_d).sum())
         lines += ["## What drives risk", "",
-                  f"TreeExplainer SHAP analysis on LightGBM reveals how importance groups across feature families:", "",
-                  f"- **Delinquency features** (recent delay codes pay_1..pay_6, months late, max delay, delay trend): "
-                  f"**{d_shap/tot*100:.1f}%** of total importance (summed mean |SHAP| = {d_shap:.3f}).",
-                  f"- **Financial & demographic features** (bill amounts, utilization, payments, limit, age, education): "
+                  f"TreeExplainer SHAP values from a final LightGBM model refit on all data, explaining a fixed sample of 3,000 customers (not out-of-fold), "
+                  f"show that recent delinquency is the largest single driver (pay_1 mean |SHAP| = 0.251). "
+                  f"Grouping the {len(df_s)} transformed features into two families:", "",
+                  f"- **Delinquency features ({n_d} features)** (recent delay codes pay_1..pay_6, months late, max delay, delay trend): "
+                  f"**{d_shap/tot*100:.1f}%** of total importance (~44%, summed mean |SHAP| = {d_shap:.3f}).",
+                  f"- **Financial & demographic features ({n_r} transformed features)** (bills, utilization, payments, limit, age, one-hot categories): "
                   f"**{r_shap/tot*100:.1f}%** of total importance (summed mean |SHAP| = {r_shap:.3f}).", "",
                   "Top individual feature drivers:", ""]
         for r in df_s.head(5).itertuples():
@@ -151,21 +164,20 @@ def main():
 
     if len(models) > 1:
         lines += ["## Recommendation", "",
-                  "Cost differences between the machine-learning challengers and the binned scorecard are **not detectable** "
-                  "(all 95% intervals include zero). However, gradient-boosted models retain a small but consistent ranking edge "
-                  "(+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). "
-                  "We recommend a two-part strategy:", "",
-                  "1. **Upgrade the scorecard**: Adopt the binned scorecard ('lr_binned') for core underwriting. It achieves the full "
-                  "cost efficiency of complex machine-learning models while maintaining complete transparency, auditable weights, and regulatory compliance.",
-                  "2. **Deploy a Gradient-Boosted challenger (XGBoost or LightGBM)**: Run a GBM in shadow mode to capitalize on its ranking advantage "
-                  "in collections prioritization and high-risk limit management, while keeping the scorecard as the primary decision engine.", ""]
+                  "Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). "
+                  "Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). "
+                  "Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:", "",
+                  "1. **Stronger baseline**: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. "
+                  "Treating repayment statuses as categorical bins resolves non-monotonic risk and matches tree model cost efficiency without black-box complexity.",
+                  "2. **Challenger to monitor**: Track LightGBM/XGBoost as a challenger to monitor. Its small ranking edge provides operational value for tiered interventions "
+                  "(such as early outreach and risk-tiered limits) while keeping the binned scorecard for core evaluation.", ""]
 
     lines += ["## Limitations", "",
-              "- One dataset from one bank in one country (Taiwan, 2005); results may not transfer.",
-              "- Random cross-validation, **no time-based validation**: we have not tested performance on later periods or under economic change.",
-              "- **No fairness or regulatory analysis.** Sex, age and marital status are in the data; using them may be restricted in real lending.",
-              "- The cost ratio is an assumption; real costs vary by exposure and recovery.",
-              "- 'Days past due' is approximated by the dataset's repayment-status codes (months of delay)."]
+              "- **Single dataset**: One dataset from one bank in Taiwan (2005); findings may not transfer to other credit portfolios.",
+              "- **No time-based validation**: Evaluated via cross-validation, not time-based cohorts under economic shift.",
+              "- **No fairness or regulatory review**: Age, sex, and marital status are present in the data without compliance screening.",
+              "- **Assumed cost ratio**: Thresholds depend on assumed cost weights (missed default = 5, false alarm = 1).",
+              "- **Repayment granularity**: Monthly status codes (-2 to 8) serve as an approximation for exact days past due."]
     C.REPORTS_DIR.mkdir(exist_ok=True, parents=True)
     md_path = C.REPORTS_DIR / "comparison_report.md"
     md_path.write_text("\n".join(lines) + "\n")

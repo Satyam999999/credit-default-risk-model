@@ -35,7 +35,17 @@ def download_uci(dest: Path = DATA_DIR) -> Path:
 
 def read_raw_file(path: str | Path | None = None) -> pd.DataFrame:
     """Read the UCI file (.xls/.xlsx has a junk first row; Kaggle-style .csv does not)."""
-    p = Path(path) if path else download_uci()
+    if path:
+        p = Path(path)
+    else:
+        # Look for local dataset in DATA_DIR before attempting network download
+        local_files = [f for f in DATA_DIR.iterdir() if f.is_file() and f.suffix.lower() in (".xls", ".xlsx", ".csv")] if DATA_DIR.exists() else []
+        if local_files:
+            # Sort by file size descending to pick real dataset file over tiny stubs
+            local_files.sort(key=lambda f: f.stat().st_size, reverse=True)
+            p = local_files[0]
+        else:
+            p = download_uci()
     reader = (lambda h: pd.read_excel(p, header=h)) if p.suffix.lower() in (".xls", ".xlsx") \
         else (lambda h: pd.read_csv(p, header=h))
     df = reader(0)
