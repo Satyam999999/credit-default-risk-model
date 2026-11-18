@@ -121,7 +121,7 @@ def main():
               "and the 'cost per customer' column change; the ranking of models is the more robust finding.", "",
               "- **Calibration**: out-of-fold predicted probabilities track observed default rates closely for all five models (Brier 0.133 to 0.139, best for the boosted trees).",
               "- **Imbalance**: class weighting or undersampling raises recall at a 0.5 cut-off (about 0.33-0.38 to 0.61-0.66) but lowers precision and distorts probabilities; "
-              "with a cost-tuned cut-off all strategies cost about the same (0.546-0.560), so we use no resampling and tune the threshold.", "",
+              "with a cost-tuned cut-off all strategies cost about the same (0.546-0.565), so we use no resampling and tune the threshold.", "",
               "![Gain and lift](../results/figures/gain_lift.png)", ""]
 
     cs_p = R / "cost_sensitivity.csv"
@@ -168,7 +168,7 @@ def main():
     if len(models) > 1:
         lines += ["## Recommendation", "",
                   "Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). "
-                  "Comparing LightGBM vs lr_binned, LightGBM captures +0.6 to +0.9 pp (about 8 to 12 more defaults per fold) in the top 10% and 30%; "
+                  "Comparing LightGBM vs lr_binned, LightGBM captures +0.8 to +0.9 pp (about 10 to 12 more defaults per fold) in the top 10% and 30%; "
                   "the top-20% difference is not detectable (+0.62 pp, 95% CI [-0.17, +1.41] pp). "
                   "Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:", "",
                   "1. **Stronger baseline**: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. "
