@@ -55,9 +55,10 @@ A model outputs a probability; we need a cut-off above which a customer is flagg
 
 **Cost sensitivity across FN:FP ratios (2:1, 5:1, 10:1)**:
 
-- **5:1 ratio (primary)**: No detectable cost difference between tree models and lr_binned (all 95% intervals include zero). The gain from binning appears at 5:1, where linear lr incurs a +0.0168 cost penalty.
-- **2:1 ratio (low penalty)**: Tree models are slightly better and never worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]). Gain from binning does not appear at 2:1 (linear lr vs lr_binned difference is -0.0003, CI includes zero).
+- **5:1 ratio (primary)**: No detectable cost difference between tree models and lr_binned (all 95% intervals include zero).
+- **2:1 ratio (low penalty)**: Tree models are slightly better and never detectably worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]).
 - **10:1 ratio (high penalty)**: Tree models show lower average cost (~ -0.021 units), but fold variance is wide and the difference is not detectable (CI includes zero).
+- **Effect of binning**: Across ratios, binning shows no difference at 2:1, a detectable gain at 5:1 (+0.0168 linear penalty), and an undetermined effect at 10:1 (wide interval).
 
 ## What drives risk
 
@@ -78,7 +79,7 @@ Sense check: recent late payments are among the top three drivers, as expected.
 
 ## Recommendation
 
-Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:
+Cost differences between tree models and the binned scorecard are **not detectable** at 5:1 (all 95% intervals include zero). Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +0.6 to +0.9 percentage points more defaults, or +8 to +12 additional defaults per fold, in the top 10–30% of risk scores). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:
 
 1. **Stronger baseline**: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. Treating repayment statuses as categorical bins resolves non-monotonic risk and matches tree model cost efficiency without black-box complexity.
 2. **Challenger to monitor**: Track LightGBM/XGBoost as a challenger to monitor. Its small ranking edge provides operational value for tiered interventions (such as early outreach and risk-tiered limits) while keeping the binned scorecard for core evaluation.

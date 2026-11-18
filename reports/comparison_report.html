@@ -200,9 +200,10 @@
 <p><img alt="Gain and lift" src="file:///Users/satyamghosh/Downloads/credit-default-risk/results/figures/gain_lift.png" /></p>
 <p><strong>Cost sensitivity across FN:FP ratios (2:1, 5:1, 10:1)</strong>:</p>
 <ul>
-<li><strong>5:1 ratio (primary)</strong>: No detectable cost difference between tree models and lr_binned (all 95% intervals include zero). The gain from binning appears at 5:1, where linear lr incurs a +0.0168 cost penalty.</li>
-<li><strong>2:1 ratio (low penalty)</strong>: Tree models are slightly better and never worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]). Gain from binning does not appear at 2:1 (linear lr vs lr_binned difference is -0.0003, CI includes zero).</li>
+<li><strong>5:1 ratio (primary)</strong>: No detectable cost difference between tree models and lr_binned (all 95% intervals include zero).</li>
+<li><strong>2:1 ratio (low penalty)</strong>: Tree models are slightly better and never detectably worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]).</li>
 <li><strong>10:1 ratio (high penalty)</strong>: Tree models show lower average cost (~ -0.021 units), but fold variance is wide and the difference is not detectable (CI includes zero).</li>
+<li><strong>Effect of binning</strong>: Across ratios, binning shows no difference at 2:1, a detectable gain at 5:1 (+0.0168 linear penalty), and an undetermined effect at 10:1 (wide interval).</li>
 </ul>
 <h2>What drives risk</h2>
 <p>TreeExplainer SHAP values from a final LightGBM model refit on all data, explaining a fixed sample of 3,000 customers (not out-of-fold), show that recent delinquency is the largest single driver (pay_1 mean |SHAP| = 0.251). Grouping the 39 transformed features into two families:</p>
@@ -220,7 +221,7 @@
 </ul>
 <p>Sense check: recent late payments are among the top three drivers, as expected.</p>
 <h2>Recommendation</h2>
-<p>Cost differences between tree models and the binned scorecard are <strong>not detectable</strong> at 5:1 (all 95% intervals include zero). Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +8 to +12 additional defaults per fold in the top 10–30% of risk scores). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:</p>
+<p>Cost differences between tree models and the binned scorecard are <strong>not detectable</strong> at 5:1 (all 95% intervals include zero). Gradient-boosted trees retain a small ranking edge (+0.010 ROC-AUC, +0.018 PR-AUC, capturing +0.6 to +0.9 percentage points more defaults, or +8 to +12 additional defaults per fold, in the top 10–30% of risk scores). Note that fold-based intervals are optimistic because cross-validation folds share training data. We recommend:</p>
 <ol>
 <li><strong>Stronger baseline</strong>: Carry forward the binned scorecard ('lr_binned') into further validation as the stronger baseline. Treating repayment statuses as categorical bins resolves non-monotonic risk and matches tree model cost efficiency without black-box complexity.</li>
 <li><strong>Challenger to monitor</strong>: Track LightGBM/XGBoost as a challenger to monitor. Its small ranking edge provides operational value for tiered interventions (such as early outreach and risk-tiered limits) while keeping the binned scorecard for core evaluation.</li>
