@@ -30,18 +30,31 @@ def download_uci(dest: Path = DATA_DIR) -> Path:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         name = next(n for n in z.namelist() if n.lower().endswith((".xls", ".xlsx", ".csv")))
         z.extract(name, dest)
-    return dest / name
+    extracted = dest / name
+    if " " in name:
+        sym = dest / name.replace(" ", "_")
+        if not sym.exists():
+            try:
+                sym.symlink_to(name)
+            except OSError:
+                pass
+    return extracted
 
 
 def read_raw_file(path: str | Path | None = None) -> pd.DataFrame:
     """Read the UCI file (.xls/.xlsx has a junk first row; Kaggle-style .csv does not)."""
+    p = None
     if path:
-        p = Path(path)
-    else:
-        # Look for local dataset in DATA_DIR before attempting network download
+        cand = Path(path)
+        if cand.exists():
+            p = cand
+        elif (cand.parent / cand.name.replace("_", " ")).exists():
+            p = cand.parent / cand.name.replace("_", " ")
+        elif (cand.parent / cand.name.replace(" ", "_")).exists():
+            p = cand.parent / cand.name.replace(" ", "_")
+    if p is None:
         local_files = [f for f in DATA_DIR.iterdir() if f.is_file() and f.suffix.lower() in (".xls", ".xlsx", ".csv")] if DATA_DIR.exists() else []
         if local_files:
-            # Sort by file size descending to pick real dataset file over tiny stubs
             local_files.sort(key=lambda f: f.stat().st_size, reverse=True)
             p = local_files[0]
         else:

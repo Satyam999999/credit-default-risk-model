@@ -83,27 +83,28 @@ Out-of-fold ranking evaluated against actual defaults (6,630 total defaults acro
 
 - **Top 10% Risk Scores**:
   - Defaults captured: `lr_binned` = 416.0 defaults/fold; `lgbm` = 426.2 defaults/fold. Difference: **+10.2 defaults** (95% CI: **[+2.7, +17.7 defaults]**, excludes 0).
-  - Capture percentage: `lr_binned` = 31.37%; `lgbm` = 32.14%. Difference: **+0.77%** (95% CI: **[+0.20%, +1.34%]**, excludes 0).
+  - Capture percentage: `lr_binned` = 31.37%; `lgbm` = 32.14%. Difference: **+0.77 percentage points** (95% CI: **[+0.20, +1.34] pp**, excludes 0).
 - **Top 20% Risk Scores**:
   - Defaults captured: `lr_binned` = 677.2 defaults/fold; `lgbm` = 685.4 defaults/fold. Difference: **+8.2 defaults** (95% CI: **[-2.3, +18.7 defaults]**, includes 0).
-  - Capture percentage: `lr_binned` = 51.07%; `lgbm` = 51.69%. Difference: **+0.62%** (95% CI: **[-0.17%, +1.41%]**, includes 0).
+  - Capture percentage: `lr_binned` = 51.07%; `lgbm` = 51.69%. Difference: **+0.62 percentage points** (95% CI: **[-0.17, +1.41] pp**, includes 0).
 - **Top 30% Risk Scores**:
   - Defaults captured: `lr_binned` = 833.4 defaults/fold; `lgbm` = 845.4 defaults/fold. Difference: **+12.0 defaults** (95% CI: **[+5.5, +18.5 defaults]**, excludes 0).
-  - Capture percentage: `lr_binned` = 62.85%; `lgbm` = 63.76%. Difference: **+0.90%** (95% CI: **[+0.42%, +1.39%]**, excludes 0).
+  - Capture percentage: `lr_binned` = 62.85%; `lgbm` = 63.76%. Difference: **+0.90 percentage points** (95% CI: **[+0.42, +1.39] pp**, excludes 0).
 
 ### Cost-Ratio Sensitivity (`results/cost_sensitivity.csv`)
 
 Train-only threshold selection re-optimized independently at FN:FP ratios 2, 5, and 10 across all 5 folds:
-- **Ratio 5:1 (primary)**: Cost differences between tree models and `lr_binned` are **not detectable** (all 95% CIs include zero; e.g. `lgbm` vs `lr_binned` diff: 0.0000 [-0.0146, +0.0146]). The gain from binning appears at 5:1, where linear `lr` incurs an extra +0.0168 cost penalty ([+0.0083, +0.0254]).
-- **Ratio 2:1 (low penalty)**: Tree ensembles are slightly better and never worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]). The gain from binning does not appear at 2:1 (linear `lr` vs `lr_binned` difference is -0.0003, CI includes zero), showing binning gains emerge as default penalties rise.
+- **Ratio 5:1 (primary)**: Cost differences between tree models and `lr_binned` are **not detectable** (all 95% CIs include zero; e.g. `lgbm` vs `lr_binned` diff: 0.0000 [-0.0146, +0.0146]).
+- **Ratio 2:1 (low penalty)**: Tree ensembles are slightly better and never detectably worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]).
 - **Ratio 10:1 (high penalty)**: Tree models show lower average point-estimate cost (~ -0.021 units), but fold variance is wide and the difference is not detectable (95% CI: [-0.050, +0.008]).
+- **Effect of binning**: Across ratios, binning shows no difference at 2:1, a detectable gain at 5:1 (+0.0168 linear penalty), and an undetermined effect at 10:1 (wide interval).
 
 ### Interpretability & SHAP Grouping (`results/shap_summary.csv`)
 
 SHAP values are calculated using `TreeExplainer` on a final LightGBM model refit on **all** training data (explaining a fixed 3,000-customer sample; not out-of-fold).
 In transformed-feature terms (39 features total after one-hot encoding categorical variables):
 - **Delinquency features (10 features)**: Account for **43.6% (~44%)** of total importance (summed mean $|SHAP| = 0.765$). Recent delinquency (`pay_1`) is the largest single driver (mean $|SHAP| = 0.251$), followed by `n_delinquent_last3` (0.184), `n_months_delinquent` (0.144), and `max_delay` (0.129).
-- **Financial & demographic features (29 transformed features)**: Account for **56.4%** of total importance (summed mean $|SHAP| = 0.990$), led by `limit_bal` (0.099) and payment amounts.
+- **Financial & demographic features (29 transformed features)**: Account for **56.4%** of total importance (summed mean $|SHAP| = 0.990$), led by `bill_amt1` (0.109), `limit_bal` (0.084), `utilization_latest` (0.082), and `pay_amt1` (0.074).
 - Final LightGBM hyperparameters selected via RandomizedSearchCV:
   `colsample_bytree = 0.598`, `learning_rate = 0.011`, `min_child_samples = 59`, `n_estimators = 362`, `num_leaves = 30`, `reg_lambda = 5.243`, `subsample = 0.816`.
 
