@@ -1,8 +1,9 @@
 # Credit-default risk model (UCI "Default of Credit Card Clients")
 
 Predict next-month default for 30,000 Taiwanese credit-card customers from 6 months of repayment status, bills and payments.
-Repayment-status delay (months) is the stand-in for days-past-due. A scorecard-style logistic regression is the baseline;
-random forest, XGBoost and LightGBM are the challengers.
+Repayment-status delay (months) is the stand-in for days-past-due. There are two baselines: linear logistic regression (`lr`)
+and binned logistic regression (`lr_binned`, which treats repayment statuses as categorical bins and is closer to a real scorecard);
+random forest (`rf`), XGBoost (`xgb`) and LightGBM (`lgbm`) are the challengers.
 
 ## What is in the repo
 
@@ -16,7 +17,10 @@ random forest, XGBoost and LightGBM are the challengers.
 | `src/creditrisk/interpret.py` | LR coefficients, tree importances, SHAP summary/dependence, business-sense check |
 | `src/creditrisk/report.py` | Builds `reports/comparison_report.md` (non-technical, ~2 pages) from the result files |
 | `docs/LEAKAGE.md`, `docs/DATA_QUALITY.md` | Leakage risks checked; data-quality issues and handling |
+| `docs/DATA_QUALITY_FINDINGS.md` | Generated data-quality counts and value distributions from the cleaning pipeline |
 | `tests/` | Unit tests for cleaning, features, metrics, leakage safety; SQL-vs-pandas parity test (needs a database) |
+
+Diagnostic figures live in `results/figures/` (`gain_lift.png`, `confusion_matrices.png`, `calibration.png`, `roc_pr.png`, `ks_*.png`), while KS statistics are reported per model in `results/cv_summary.csv`.
 
 ## Setup
 
@@ -26,6 +30,7 @@ pip install -e .                                                      # or prefi
 docker compose up -d db                                               # PostgreSQL 16 (credit/credit/credit on :5432)
 export CREDIT_DB_URL=postgresql+psycopg2://credit:credit@localhost:5432/credit
 ```
+*(Note: The Docker Compose path is untested; PostgreSQL 16 was verified locally via Homebrew.)*
 
 Data: `python -m creditrisk.db load` downloads the UCI zip (id 350) automatically, or pass `--path` to a local
 `.xls`/`.xlsx`/Kaggle `.csv`. Place downloads under `data/` (git-ignored).
@@ -33,7 +38,7 @@ Data: `python -m creditrisk.db load` downloads the UCI zip (id 350) automaticall
 ## Run
 
 ```bash
-make test         # unit tests (pytest)
+make test         # unit tests (pytest: 27 pass and 1 skipped without a database; all 28 pass with CREDIT_DB_URL set)
 make db-load      # raw table + views v_clean, v_monthly, v_model_features
 make db-dq        # data-quality counts in SQL
 make leakage      # leakage diagnostics
@@ -79,7 +84,7 @@ Paired fold differences ($Model - lr\_binned$). Cost differences are **not detec
 
 ### Operational Ranking (Defaults Captured in Top Deciles)
 
-Out-of-fold ranking evaluated against actual defaults (6,630 total defaults across 29,965 customers; exactly 1,326 defaults per 5,993-customer fold):
+Out-of-fold ranking evaluated against actual defaults (6,630 total defaults across 29,965 customers; exactly 1,326 defaults per 5,993-customer fold). Cutoff rule: top-$k$% rounded to the nearest customer (1,199 for 20%):
 
 - **Top 10% Risk Scores**:
   - Defaults captured: `lr_binned` = 416.0 defaults/fold; `lgbm` = 426.2 defaults/fold. Difference: **+10.2 defaults** (95% CI: **[+2.7, +17.7 defaults]**, excludes 0).
@@ -98,6 +103,13 @@ Train-only threshold selection re-optimized independently at FN:FP ratios 2, 5, 
 - **Ratio 2:1 (low penalty)**: Tree ensembles are slightly better and never detectably worse (-0.006 cost units, detectable, 95% CI: [-0.010, -0.002]).
 - **Ratio 10:1 (high penalty)**: Tree models show lower average point-estimate cost (~ -0.021 units), but fold variance is wide and the difference is not detectable (95% CI: [-0.050, +0.008]).
 - **Effect of binning**: Across ratios, binning shows no difference at 2:1, a detectable gain at 5:1 (+0.0168 linear penalty), and an undetermined effect at 10:1 (wide interval).
+
+### Class Imbalance Strategies (`results/imbalance_comparison.csv`)
+
+- At a 0.5 cut-off, class weighting or undersampling raises recall (~0.33-0.38 -> 0.61-0.66), lowers precision, and worsens Brier score (~0.13 -> 0.17-0.19).
+- SMOTE on tree models stays close to no strategy.
+- With a cost-tuned cut-off, all strategies cost 0.546-0.565, so we use no resampling and tune the threshold.
+- *Note: `lr_binned` was not part of the imbalance study.*
 
 ### Interpretability & SHAP Grouping (`results/shap_summary.csv`)
 
@@ -125,7 +137,7 @@ Fully executed and verified end-to-end on the real UCI dataset (`data/default_of
   - `make db-load`: Loaded 30,000 raw records; materialized views `v_clean`, `v_monthly`, and `v_model_features`.
   - `make db-dq`: Ran all 15 SQL data-quality checks from `sql/04_data_quality.sql`.
   - `tests/test_sql_parity.py`: Passed (100%). All 33 window-function features match the pandas mirror within $10^{-9}$ numerical tolerance across all 29,965 rows.
-  - Model parity: Re-running `--source db` vs `--source file` produces bitwise-identical evaluation metrics (difference $< 5.84 \times 10^{-14}$).
+  - Model parity: Re-running `--source db` vs `--source file` produces evaluation metrics identical within floating-point tolerance (< 5.84e-14).
 - **Imbalance study (`make imbalance`):**
   - Evaluated 4 models (`lr`, `rf`, `xgb`, `lgbm`) across 4 strategies (`none`, `class_weight`, `undersample`, `smote`) under 5-fold CV.
   - Verified native NaN handling: XGBoost and LightGBM receive NaNs natively under `"none"`, while median imputation is applied for SMOTE (k-NN requirement) and Random Forest.
@@ -133,7 +145,7 @@ Fully executed and verified end-to-end on the real UCI dataset (`data/default_of
   - Full settings: 5 outer folds, 3 inner folds, 20 randomized search iterations per fold across all 5 models (`lr`, `lr_binned`, `rf`, `xgb`, `lgbm`).
   - Train-only threshold tuning minimizing cost at 5:1 FN:FP ratio.
   - Added binned scorecard baseline (`lr_binned`) with one-hot encoded repayment status levels (`-2, -1, 0, 1, 2, 3+`), capturing non-monotonic risk across non-delinquent codes.
-  - Key finding: `lr_binned` completely closes the cost gap with tree models (paired cost differences of `rf`, `xgb`, `lgbm` vs `lr_binned` all include 0 in their 95% CIs). Tree models retain a modest ranking advantage (ROC-AUC gap narrowed from +0.021 down to +0.010).
+  - Key finding: no detectable cost difference vs lr_binned at 5:1 (trees are detectably cheaper by ~2% at 2:1); ROC-AUC gap narrows from +0.021 to +0.010.
   - Challenger-vs-challenger comparisons: XGBoost and LightGBM are indistinguishable on both cost and ranking (all pairwise metric difference CIs include 0).
   - Note: Fold-based intervals are indicative and optimistic because cross-validation folds share training data.
 - **Interpretability & business checks (`make interpret`):**
