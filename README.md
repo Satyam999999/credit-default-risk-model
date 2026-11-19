@@ -1,9 +1,18 @@
 # Credit-default risk model (UCI "Default of Credit Card Clients")
 
+[![Tests](https://github.com/Satyam999999/credit-default-risk-model/actions/workflows/tests.yml/badge.svg)](https://github.com/Satyam999999/credit-default-risk-model/actions/workflows/tests.yml)
+
+A binned logistic-regression scorecard shows no detectable cost difference from boosted trees at an assumed 5:1 missed-default:false-alarm cost, while tree models keep a small ranking edge (ROC-AUC about +0.010). Fold-based intervals are optimistic; no time-based validation.
+
 Predict next-month default for 30,000 Taiwanese credit-card customers from 6 months of repayment status, bills and payments.
 Repayment-status delay (months) is the stand-in for days-past-due. There are two baselines: linear logistic regression (`lr`)
 and binned logistic regression (`lr_binned`, which treats repayment statuses as categorical bins and is closer to a real scorecard);
 random forest (`rf`), XGBoost (`xgb`) and LightGBM (`lgbm`) are the challengers.
+
+[Full Report (2-page PDF)](reports/comparison_report.pdf)
+
+![Gain and lift](results/figures/gain_lift.png)
+![Calibration](results/figures/calibration.png)
 
 ## What is in the repo
 
@@ -74,7 +83,7 @@ Results from the full-settings nested cross-validation (5 outer folds, 3 inner f
 
 ### Paired Differences vs Binned Scorecard (`lr_binned`)
 
-Paired fold differences ($Model - lr\_binned$). Cost differences are **not detectable** (all 95% intervals cross zero), while tree models maintain a small, consistent ranking edge:
+Paired fold differences (Model − lr_binned). Cost differences are **not detectable** (all 95% intervals cross zero), while tree models maintain a small, consistent ranking edge:
 
 | Challenger vs `lr_binned` | Δ ROC-AUC | Δ PR-AUC | Δ Recall | Δ Cost per customer |
 |---|---|---|---|---|
@@ -84,7 +93,7 @@ Paired fold differences ($Model - lr\_binned$). Cost differences are **not detec
 
 ### Operational Ranking (Defaults Captured in Top Deciles)
 
-Out-of-fold ranking evaluated against actual defaults (6,630 total defaults across 29,965 customers; exactly 1,326 defaults per 5,993-customer fold). Cutoff rule: top-$k$% rounded to the nearest customer (1,199 for 20%):
+Out-of-fold ranking evaluated against actual defaults (6,630 total defaults across 29,965 customers; exactly 1,326 defaults per 5,993-customer fold). Cutoff rule: top-k% rounded to the nearest customer (1,199 for 20%):
 
 - **Top 10% Risk Scores**:
   - Defaults captured: `lr_binned` = 416.0 defaults/fold; `lgbm` = 426.2 defaults/fold. Difference: **+10.2 defaults** (95% CI: **[+2.7, +17.7 defaults]**, excludes 0).
@@ -115,8 +124,8 @@ Train-only threshold selection re-optimized independently at FN:FP ratios 2, 5, 
 
 SHAP values are calculated using `TreeExplainer` on a final LightGBM model refit on **all** training data (explaining a fixed 3,000-customer sample; not out-of-fold).
 In transformed-feature terms (39 features total after one-hot encoding categorical variables):
-- **Delinquency features (10 features)**: Account for **43.6% (~44%)** of total importance (summed mean $|SHAP| = 0.765$). Recent delinquency (`pay_1`) is the largest single driver (mean $|SHAP| = 0.251$), followed by `n_delinquent_last3` (0.184), `n_months_delinquent` (0.144), and `max_delay` (0.129).
-- **Financial & demographic features (29 transformed features)**: Account for **56.4%** of total importance (summed mean $|SHAP| = 0.990$), led by `bill_amt1` (0.109), `limit_bal` (0.084), `utilization_latest` (0.082), and `pay_amt1` (0.074).
+- **Delinquency features (10 features)**: Account for **43.6% (~44%)** of total importance (summed mean `|SHAP| = 0.765`). Recent delinquency (`pay_1`) is the largest single driver (mean `|SHAP| = 0.251`), followed by `n_delinquent_last3` (0.184), `n_months_delinquent` (0.144), and `max_delay` (0.129).
+- **Financial & demographic features (29 transformed features)**: Account for **56.4%** of total importance (summed mean `|SHAP| = 0.990`), led by `bill_amt1` (0.109), `limit_bal` (0.084), `utilization_latest` (0.082), and `pay_amt1` (0.074).
 - Final LightGBM hyperparameters selected via RandomizedSearchCV:
   `colsample_bytree = 0.598`, `learning_rate = 0.011`, `min_child_samples = 59`, `n_estimators = 362`, `num_leaves = 30`, `reg_lambda = 5.243`, `subsample = 0.816`.
 
@@ -128,30 +137,11 @@ In transformed-feature terms (39 features total after one-hot encoding categoric
 - **Cost ratio assumption**: Abstract cost ratio (FN=5, FP=1) is assumed; real charge-off losses and customer intervention costs vary by exposure and recovery rate.
 - **Monthly granularity**: Delay codes approximate days-past-due at monthly increments. See `docs/LEAKAGE.md` for residual risks.
 
-## Verification status of this code
+## Testing
 
-Fully executed and verified end-to-end on the real UCI dataset (`data/default_of_credit_card_clients.xls`: 30,000 raw rows, 29,965 clean rows, 22.126% default rate, 33 features) under **full settings** (no `--fast`):
+- 27 unit and integration tests pass without Postgres; 28 pass with Postgres (tested on 16 via Homebrew)
+- Nested CV runs cleanly through `make cv` (or CLI) with no leakage
+- SQL and Python feature pipelines produce identical values (< 5.84e-14 max absolute difference)
+- Results, SHAP summary and figures regenerate via `make all`
 
-- **Database integration & SQL feature parity:**
-  - Tested against local PostgreSQL 16 (`CREDIT_DB_URL=postgresql+psycopg2://credit:credit@localhost:5432/credit`).
-  - `make db-load`: Loaded 30,000 raw records; materialized views `v_clean`, `v_monthly`, and `v_model_features`.
-  - `make db-dq`: Ran all 15 SQL data-quality checks from `sql/04_data_quality.sql`.
-  - `tests/test_sql_parity.py`: Passed (100%). All 33 window-function features match the pandas mirror within $10^{-9}$ numerical tolerance across all 29,965 rows.
-  - Model parity: Re-running `--source db` vs `--source file` produces evaluation metrics identical within floating-point tolerance (< 5.84e-14).
-- **Imbalance study (`make imbalance`):**
-  - Evaluated 4 models (`lr`, `rf`, `xgb`, `lgbm`) across 4 strategies (`none`, `class_weight`, `undersample`, `smote`) under 5-fold CV.
-  - Verified native NaN handling: XGBoost and LightGBM receive NaNs natively under `"none"`, while median imputation is applied for SMOTE (k-NN requirement) and Random Forest.
-- **Nested Cross-Validation (`make cv`):**
-  - Full settings: 5 outer folds, 3 inner folds, 20 randomized search iterations per fold across all 5 models (`lr`, `lr_binned`, `rf`, `xgb`, `lgbm`).
-  - Train-only threshold tuning minimizing cost at 5:1 FN:FP ratio.
-  - Added binned scorecard baseline (`lr_binned`) with one-hot encoded repayment status levels (`-2, -1, 0, 1, 2, 3+`), capturing non-monotonic risk across non-delinquent codes.
-  - Key finding: no detectable cost difference vs lr_binned at 5:1 (trees are detectably cheaper by ~2% at 2:1); ROC-AUC gap narrows from +0.021 to +0.010.
-  - Challenger-vs-challenger comparisons: XGBoost and LightGBM are indistinguishable on both cost and ranking (all pairwise metric difference CIs include 0).
-  - Note: Fold-based intervals are indicative and optimistic because cross-validation folds share training data.
-- **Interpretability & business checks (`make interpret`):**
-  - Linear scorecard coefficients, binned scorecard coefficients, tree importances, and LightGBM SHAP TreeExplainer analysis.
-  - Business-sense check passed: delinquency features (`pay_1`, `n_delinquent_last3`, `n_months_delinquent`) occupy all top 3 SHAP ranks, with positive direction for `pay_1` (+0.2596 correlation).
-- **Reports:**
-  - Generated `reports/comparison_report.md` and exported `reports/comparison_report.pdf` (verified to fit exactly 2 pages).
-- **Unit test suite:**
-  - 28 tests collected, 28 verified passing (including leakage safety, cleaning, features, SQL parity, NaN passthrough preservation, and `lr_binned` structure).
+License: MIT
