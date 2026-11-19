@@ -131,8 +131,12 @@ def main(argv=None):
     paired.to_csv(out / "cv_paired_vs_baseline.csv", index=False)
     oof.to_csv(out / "oof_predictions.csv")
     (out / "best_params.json").write_text(json.dumps(all_params, indent=2, default=str))
+    cfg = dict(vars(a))
+    out_path = C.Path(a.out).resolve()
+    if out_path.is_relative_to(C.ROOT.resolve()):
+        cfg["out"] = str(out_path.relative_to(C.ROOT.resolve()))
     (out / "run_config.json").write_text(json.dumps(
-        {**vars(a), "n_raw": ds.n_raw, "n_clean": ds.n_clean, "source": ds.source,
+        {**cfg, "n_raw": ds.n_raw, "n_clean": ds.n_clean, "source": ds.source,
          "cost_assumption": "ASSUMPTION: missed default costs c_fn, false alarm costs c_fp"}, indent=2))
     print(summ.pivot(index="model", columns="metric", values="mean").round(4).to_string())
 

@@ -1,7 +1,7 @@
 MPLCONFIGDIR=/tmp/matplotlib PYTHONPATH=src python3 -m creditrisk.interpret --source file --path data/default_of_credit_card_clients.xls --models lr,lr_binned,rf,xgb,lgbm --shap-model lgbm 
 /Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/shap/explainers/_tree.py:578: UserWarning: LightGBM binary classifier with TreeExplainer shap values output has changed to a list of ndarray
   warnings.warn(
-/Users/satyamghosh/Downloads/credit-default-risk/src/creditrisk/interpret.py:61: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+src/creditrisk/interpret.py:61: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
   direction = [spearmanr(Xt.iloc[:, j], sv[:, j])[0] if Xt.iloc[:, j].nunique() > 1 else np.nan
 Business-sense check: {'top3': ['pay_1', 'n_delinquent_last3', 'n_months_delinquent'], 'delinquency_in_top3': True, 'pay_1_higher_delay_higher_risk': True}
 Calibration plot: results/figures/calibration.png (from out-of-fold predictions, made by run_experiments).

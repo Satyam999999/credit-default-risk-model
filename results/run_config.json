@@ -13,7 +13,7 @@
   "c_fp": 1.0,
   "fast": false,
   "seed": 42,
-  "out": "/Users/satyamghosh/Downloads/credit-default-risk/results",
+  "out": "results",
   "n_raw": 30000,
   "n_clean": 29965,
   "cost_assumption": "ASSUMPTION: missed default costs c_fn, false alarm costs c_fp"
