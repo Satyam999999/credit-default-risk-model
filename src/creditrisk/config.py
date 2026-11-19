@@ -15,7 +15,7 @@ DOCS_DIR = ROOT / "docs"
 SEED = 42
 TARGET = "default_next_month"
 
-# UCI dataset id 350. Not verified from the build environment (no network there).
+# UCI dataset id 350 (Yeh & Lien 2009). The download is fetched automatically if no local file is found.
 UCI_URL = "https://archive.ics.uci.edu/static/public/350/default+of+credit+card+clients.zip"
 DB_URL = os.environ.get("CREDIT_DB_URL", "postgresql+psycopg2://credit:credit@localhost:5432/credit")
 
@@ -48,6 +48,8 @@ OTHER_NUMERIC = ["age"] + PAY + ENGINEERED
 FEATURES = CATEGORICAL + AMOUNT_COLS + OTHER_NUMERIC
 
 DELINQUENCY_FEATURES = ["pay_1", "pay_2", "n_months_delinquent", "n_delinquent_last3", "max_delay", "delay_trend"]
+# All features that describe repayment delay; used for the grouped SHAP importance.
+DELINQUENCY_GROUP = PAY + ["n_months_delinquent", "n_delinquent_last3", "max_delay", "delay_trend"]
 
 MODEL_LABELS = {
     "lr": "Logistic regression (baseline)",

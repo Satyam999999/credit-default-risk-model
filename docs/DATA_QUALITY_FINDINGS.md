@@ -15,5 +15,5 @@
 | rows with a payment above the credit limit | 280 | 0.933 | Kept; payment/bill ratio is capped at 1. |
 | rows with a delay status but no positive previous bill | 1531 | 5.103 | Kept (inconsistent: nothing owed yet flagged late); ratio is undefined -> missing. |
 | rows with status 0 but zero payment against a positive previous bill | 2548 | 8.493 | Kept (status 0 should mean minimum paid); the ratio feature exposes it to the model. |
-| rows where delay jumps from <=0 to >=2 in one month | 5948 | 19.827 | Kept (logically a delay can grow by at most 1 per month); flagged as label noise. |
+| rows where delay jumps from <=0 to >=2 in one month | 5948 | 19.827 | Kept (logically a delay grows by at most 1 per month, but this pattern is common in the file); reported, not removed. |
 | rows with age outside 21-79 | 0 | 0.0 | Kept. |

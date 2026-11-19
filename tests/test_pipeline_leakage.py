@@ -11,6 +11,7 @@ from creditrisk.pipelines import make_pipeline, signed_log1p
 from creditrisk.synthetic import make_synthetic
 
 HAS_IMB = importlib.util.find_spec("imblearn") is not None
+HAS_GBM = all(importlib.util.find_spec(m) is not None for m in ("xgboost", "lightgbm"))
 
 
 class TestLeakageSafety(unittest.TestCase):
@@ -62,6 +63,7 @@ class TestLeakageSafety(unittest.TestCase):
             self.assertEqual(len(pipe.predict_proba(X.iloc[800:])), len(X) - 800)   # validation not resampled
             self.assertIn("sampler", pipe.named_steps)
 
+    @unittest.skipUnless(HAS_GBM, "xgboost / lightgbm not installed")
     def test_nan_passthrough_for_xgb_lgbm_none_and_imputation_for_smote(self):
         """xgb and lgbm under 'none' must retain NaNs natively; smote and rf must impute."""
         X_with_nan = self.ds.X.copy()

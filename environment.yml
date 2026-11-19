@@ -18,4 +18,5 @@ dependencies:
   - xlrd        # reads the UCI .xls file
   - openpyxl
   - joblib
+  - markdown    # report PDF export (also needs Chrome/Chromium)
   - pytest

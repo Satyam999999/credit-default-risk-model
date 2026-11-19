@@ -10,6 +10,7 @@ leakage:     ; $(PY) -m creditrisk.leakage_checks --source $(SOURCE) --path $(FI
 imbalance:   ; $(PY) -m creditrisk.imbalance_study --source $(SOURCE) --path $(FILE) $(FAST)
 cv:          ; $(PY) -m creditrisk.run_experiments --source $(SOURCE) --path $(FILE) --models lr,lr_binned,rf,xgb,lgbm $(FAST)
 interpret:   ; $(PY) -m creditrisk.interpret --source $(SOURCE) --path $(FILE) --models lr,lr_binned,rf,xgb,lgbm --shap-model lgbm $(FAST)
+analyze:     ; $(PY) -m creditrisk.extra_analyses all --source $(SOURCE) --path $(FILE)
 report:      ; $(PY) -m creditrisk.report
-all: test leakage imbalance cv interpret report
+all: test leakage imbalance cv interpret analyze report
 smoke:       ; $(PY) -m creditrisk.run_experiments --source synthetic --models lr,rf --fast --out /tmp/smoke   # plumbing only

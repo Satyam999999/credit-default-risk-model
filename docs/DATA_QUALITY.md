@@ -16,7 +16,7 @@ The payment in month k is treated as paying the statement of the older month k+1
 | Bills above the limit; payments above the limit | Outliers / over-limit | Kept; ratio capped at 1; linear model uses signed-log amounts; tree models are insensitive to scale |
 | Delay flagged but previous bill <= 0 | Inconsistent: nothing owed yet "late" | Kept; pay ratio undefined (NULL) |
 | Status 0 but zero payment against a positive bill | Status 0 should mean the minimum was paid | Kept; the ratio feature exposes it |
-| Delay jumping from <=0 to >=2 in one month | A delay can grow by at most 1 per month | Kept; flagged as likely label noise |
+| Delay jumping from <=0 to >=2 in one month | A delay can grow by at most 1 per month | Kept; reported, not removed (this pattern is common in the file) |
 | Age outside 21-79, heavy-tailed amounts | Outliers | Kept |
 | Class imbalance (about 22% default in the published dataset) | Affects thresholds | See imbalance study |
 

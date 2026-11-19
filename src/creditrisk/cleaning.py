@@ -91,7 +91,7 @@ def data_quality_report(df: pd.DataFrame) -> pd.DataFrame:
         "Kept (status 0 should mean minimum paid); the ratio feature exposes it to the model.")
     add("rows where delay jumps from <=0 to >=2 in one month",
         _any_over_months([(df[f"pay_{k}"] >= 2) & (df[f"pay_{k+1}"] <= 0) for k in range(1, 6)]),
-        "Kept (logically a delay can grow by at most 1 per month); flagged as label noise.")
+        "Kept (logically a delay grows by at most 1 per month, but this pattern is common in the file); reported, not removed.")
     add("rows with age outside 21-79", ~df["age"].between(21, 79), "Kept.")
 
     rep = pd.DataFrame(rows, columns=["check", "n_rows", "treatment"])

@@ -13,3 +13,4 @@ xlrd
 openpyxl
 joblib
 pytest
+markdown

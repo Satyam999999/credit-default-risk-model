@@ -97,7 +97,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--source", choices=["file", "db", "synthetic"], default="file")
     ap.add_argument("--path"); ap.add_argument("--db-url")
-    ap.add_argument("--models", default="lr,rf,xgb,lgbm")
+    ap.add_argument("--models", default="lr,lr_binned,rf,xgb,lgbm")
     ap.add_argument("--shap-model", default="lgbm")
     ap.add_argument("--n-iter", type=int, default=20)
     ap.add_argument("--fast", action="store_true")

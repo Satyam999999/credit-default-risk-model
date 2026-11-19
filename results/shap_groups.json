@@ -1,0 +1,15 @@
+{
+  "n_features": 39,
+  "delinquency": {
+    "n_features": 10,
+    "sum_mean_abs_shap": 0.7646280207813106,
+    "share": 0.43570737442871826
+  },
+  "other": {
+    "n_features": 29,
+    "sum_mean_abs_shap": 0.9902837976928651,
+    "share": 0.5642926255712817
+  },
+  "top_feature": "pay_1",
+  "top_feature_mean_abs_shap": 0.2513265887869741
+}
